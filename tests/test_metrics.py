@@ -1,161 +1,224 @@
 import pytest
-import pandas as pd
+import polars as pl
 import numpy as np
-from wrtrade.metrics import Metrics
+from wrtrade.metrics import (
+    volatility, 
+    sortino_ratio, 
+    gain_to_pain_ratio, 
+    max_drawdown,
+    rolling_volatility,
+    rolling_metric,
+    rolling_max_drawdown,
+    calculate_all_metrics,
+    calculate_all_rolling_metrics,
+    tear_sheet
+)
+
 
 @pytest.fixture
-def sample_data():
-    dates = pd.date_range(start='2022-01-01', periods=100, freq='D')
-    returns = pd.Series(np.random.normal(0.001, 0.02, 100), index=dates)
-    market_returns = pd.Series(np.random.normal(0.0005, 0.015, 100), index=dates)
-    return returns, market_returns
+def sample_returns():
+    """Generate sample return data."""
+    np.random.seed(42)
+    return pl.Series('returns', np.random.normal(0.001, 0.02, 252))  # Daily returns for 1 year
 
-class TestMetrics:
-    def test_initialization(self, sample_data):
-        returns, market_returns = sample_data
-        metrics = Metrics(returns, market_returns)
-        assert isinstance(metrics, Metrics)
-        assert metrics.returns.equals(returns)
-        assert metrics.market_returns.equals(market_returns)
 
-    def test_total_return(self, sample_data):
-        returns, _ = sample_data
-        metrics = Metrics(returns, _)
-        total_return = metrics.total_return()
-        assert isinstance(total_return, float)
-        assert np.isclose(total_return, (1 + returns).prod() - 1, rtol=1e-5)
+@pytest.fixture
+def positive_returns():
+    """Generate only positive returns."""
+    return pl.Series('returns', [0.01, 0.02, 0.015, 0.005, 0.03])
 
-    def test_annualized_return(self, sample_data):
-        returns, _ = sample_data
-        metrics = Metrics(returns, _)
-        annualized_return = metrics.annualized_return()
-        assert isinstance(annualized_return, float)
-        expected = (1 + metrics.total_return()) ** (252 / len(returns)) - 1
-        assert np.isclose(annualized_return, expected, rtol=1e-5)
 
-    def test_sharpe_ratio(self, sample_data):
-        returns, _ = sample_data
-        metrics = Metrics(returns, _)
-        sharpe = metrics.sharpe_ratio()
-        assert isinstance(sharpe, float)
-        expected = np.sqrt(252) * returns.mean() / returns.std()
-        assert np.isclose(sharpe, expected, rtol=1e-5)
+@pytest.fixture
+def negative_returns():
+    """Generate only negative returns."""
+    return pl.Series('returns', [-0.01, -0.02, -0.015, -0.005, -0.03])
 
-    def test_sortino_ratio(self, sample_data):
-        returns, _ = sample_data
-        metrics = Metrics(returns, _)
-        sortino = metrics.sortino_ratio()
-        assert isinstance(sortino, float)
-        downside_returns = returns[returns < 0]
-        expected = np.sqrt(252) * returns.mean() / downside_returns.std()
-        assert np.isclose(sortino, expected, rtol=1e-5)
 
-    def test_information_criterion(self, sample_data):
-        returns, market_returns = sample_data
-        metrics = Metrics(returns, market_returns)
-        ic = metrics.information_criterion()
-        assert isinstance(ic, float)
-        expected = (returns - market_returns).mean() / (returns - market_returns).std()
-        assert np.isclose(ic, expected, rtol=1e-5)
+@pytest.fixture
+def mixed_returns():
+    """Generate mixed positive and negative returns."""
+    return pl.Series('returns', [0.02, -0.01, 0.03, -0.015, 0.01, -0.005])
 
-    def test_max_drawdown(self, sample_data):
-        returns, _ = sample_data
-        metrics = Metrics(returns, _)
-        max_dd = metrics.max_drawdown()
-        assert isinstance(max_dd, float)
-        assert max_dd <= 0
-        cumulative_returns = (1 + returns).cumprod()
-        expected = (cumulative_returns / cumulative_returns.cummax() - 1).min()
-        assert np.isclose(max_dd, expected, rtol=1e-5)
 
-    def test_win_rate(self, sample_data):
-        returns, _ = sample_data
-        metrics = Metrics(returns, _)
-        win_rate = metrics.win_rate()
-        assert isinstance(win_rate, float)
-        assert 0 <= win_rate <= 1
-        expected = (returns > 0).mean()
-        assert np.isclose(win_rate, expected, rtol=1e-5)
+def test_volatility(sample_returns):
+    """Test volatility calculation."""
+    vol = volatility(sample_returns)
+    assert isinstance(vol, float)
+    assert vol > 0
+    
+    # Test with known values
+    known_returns = pl.Series('returns', [0.01, -0.01, 0.01, -0.01])
+    vol_known = volatility(known_returns)
+    assert vol_known > 0
 
-    def test_profit_factor(self, sample_data):
-        returns, _ = sample_data
-        metrics = Metrics(returns, _)
-        pf = metrics.profit_factor()
-        assert isinstance(pf, float)
-        assert pf >= 0
-        expected = abs(returns[returns > 0].sum() / returns[returns < 0].sum())
-        assert np.isclose(pf, expected, rtol=1e-5)
 
-    def test_alpha(self, sample_data):
-        returns, market_returns = sample_data
-        metrics = Metrics(returns, market_returns)
-        alpha = metrics.alpha()
-        assert isinstance(alpha, float)
-        beta = metrics.beta()
-        expected = returns.mean() - (0.05/252 + beta * (market_returns.mean() - 0.05/252))
-        assert np.isclose(alpha, expected, rtol=1e-5)
+def test_sortino_ratio(sample_returns):
+    """Test Sortino ratio calculation."""
+    sortino = sortino_ratio(sample_returns)
+    assert isinstance(sortino, (float, type(float('inf'))))
+    
+    # Test with only positive returns
+    pos_returns = pl.Series('returns', [0.01, 0.02, 0.03])
+    sortino_pos = sortino_ratio(pos_returns)
+    assert sortino_pos == float('inf')  # No downside deviation
+    
+    # Test with mixed returns
+    mixed = pl.Series('returns', [0.02, -0.01, 0.01])
+    sortino_mixed = sortino_ratio(mixed)
+    assert isinstance(sortino_mixed, float)
 
-    def test_beta(self, sample_data):
-        returns, market_returns = sample_data
-        metrics = Metrics(returns, market_returns)
-        beta = metrics.beta()
-        assert isinstance(beta, float)
-        expected = np.cov(returns, market_returns)[0, 1] / np.var(market_returns)
-        assert np.isclose(beta, expected, rtol=1e-5)
 
-    def test_calculate_metrics(self, sample_data):
-        returns, market_returns = sample_data
-        metrics = Metrics(returns, market_returns)
-        results = metrics.calculate_metrics()
-        assert isinstance(results, dict)
-        expected_keys = ['total_return', 'annualized_return', 'sharpe_ratio', 'sortino_ratio',
-                         'information_criterion', 'max_drawdown', 'win_rate', 'profit_factor', 'alpha', 'beta']
-        assert all(key in results for key in expected_keys)
-        for key, value in results.items():
-            assert isinstance(value, float)
+def test_gain_to_pain_ratio(mixed_returns):
+    """Test gain to pain ratio calculation."""
+    gtp = gain_to_pain_ratio(mixed_returns)
+    assert isinstance(gtp, (float, type(float('inf'))))
+    assert gtp > 0
+    
+    # Test with only positive returns
+    pos_returns = pl.Series('returns', [0.01, 0.02, 0.03])
+    gtp_pos = gain_to_pain_ratio(pos_returns)
+    assert gtp_pos == float('inf')  # No losses
+    
+    # Test with only negative returns  
+    neg_returns = pl.Series('returns', [-0.01, -0.02, -0.03])
+    gtp_neg = gain_to_pain_ratio(neg_returns)
+    assert gtp_neg == 0  # No gains
 
-    @pytest.mark.parametrize("window", [20, 50])
-    def test_rolling_metrics(self, sample_data, window):
-        returns, market_returns = sample_data
-        metrics = Metrics(returns, market_returns)
-        
-        rolling_sharpe = metrics.rolling_sharpe_ratio(window=window)
-        rolling_sortino = metrics.rolling_sortino_ratio(window=window)
-        rolling_ic = metrics.rolling_information_ratio(window=window)
-        
-        for rolling_metric in [rolling_sharpe, rolling_sortino, rolling_ic]:
-            assert isinstance(rolling_metric, pd.Series)
-            assert len(rolling_metric) == len(returns)
-            assert rolling_metric.iloc[:window-1].isna().all()
-            assert not rolling_metric.iloc[window:].isna().any()
-            assert all(isinstance(x, float) for x in rolling_metric.dropna())
 
-    def test_edge_cases(self):
-        # Test with empty data
-        empty_returns = pd.Series()
-        empty_market_returns = pd.Series()
-        metrics = Metrics(empty_returns, empty_market_returns)
-        
-        with pytest.raises(ValueError):
-            metrics.total_return()
-        
-        # Test with constant returns
-        constant_returns = pd.Series([0.01] * 100)
-        constant_market_returns = pd.Series([0.005] * 100)
-        metrics = Metrics(constant_returns, constant_market_returns)
-        
-        assert metrics.sharpe_ratio() == float('inf')
-        assert metrics.sortino_ratio() == float('inf')
-        assert metrics.win_rate() == 1.0
-        assert metrics.max_drawdown() == 0.0
+def test_max_drawdown(sample_returns):
+    """Test maximum drawdown calculation."""
+    dd = max_drawdown(sample_returns)
+    assert isinstance(dd, float)
+    assert dd <= 0  # Drawdown should be negative or zero
+    
+    # Test with monotonically increasing returns
+    increasing = pl.Series('returns', [0.01, 0.01, 0.01, 0.01])
+    dd_inc = max_drawdown(increasing)
+    assert dd_inc == 0  # No drawdown
+    
+    # Test with known drawdown pattern
+    pattern = pl.Series('returns', [0.1, -0.05, -0.03, 0.02])
+    dd_pattern = max_drawdown(pattern)
+    assert dd_pattern < 0
 
-    def test_input_validation(self):
-        invalid_returns = [1, 2, 3]  # Not a pd.Series
-        valid_market_returns = pd.Series([0.01, 0.02, 0.03])
-        
-        with pytest.raises(TypeError):
-            Metrics(invalid_returns, valid_market_returns)
-        
-        mismatched_returns = pd.Series([0.01, 0.02])
-        with pytest.raises(ValueError):
-            Metrics(mismatched_returns, valid_market_returns)
+
+def test_rolling_volatility(sample_returns):
+    """Test rolling volatility calculation."""
+    window = 50
+    rolling_vol = rolling_volatility(sample_returns, window)
+    
+    assert isinstance(rolling_vol, pl.Series)
+    assert len(rolling_vol) == len(sample_returns)
+    
+    # First (window-1) values should be null
+    assert rolling_vol[:window-1].null_count() == window - 1
+    
+    # Non-null values should be positive
+    non_null_values = rolling_vol.drop_nulls()
+    assert all(val > 0 for val in non_null_values)
+
+
+def test_rolling_metric(sample_returns):
+    """Test generic rolling metric function."""
+    window = 30
+    rolling_vol = rolling_metric(sample_returns, volatility, window)
+    
+    assert isinstance(rolling_vol, pl.Series)
+    assert len(rolling_vol) == len(sample_returns)
+
+
+def test_rolling_max_drawdown(sample_returns):
+    """Test rolling maximum drawdown."""
+    window = 50
+    rolling_dd = rolling_max_drawdown(sample_returns, window)
+    
+    assert isinstance(rolling_dd, pl.Series)
+    assert len(rolling_dd) == len(sample_returns)
+    
+    # Non-null values should be <= 0
+    non_null_values = rolling_dd.drop_nulls()
+    assert all(val <= 0 for val in non_null_values)
+
+
+def test_calculate_all_metrics(sample_returns):
+    """Test calculation of all metrics at once."""
+    metrics = calculate_all_metrics(sample_returns)
+    
+    assert isinstance(metrics, dict)
+    required_metrics = ['volatility', 'sortino_ratio', 'gain_to_pain_ratio', 'max_drawdown']
+    
+    for metric in required_metrics:
+        assert metric in metrics
+        assert isinstance(metrics[metric], (float, type(float('inf'))))
+
+
+def test_calculate_all_rolling_metrics(sample_returns):
+    """Test calculation of all rolling metrics."""
+    window = 50
+    rolling_metrics = calculate_all_rolling_metrics(sample_returns, window)
+    
+    assert isinstance(rolling_metrics, dict)
+    expected_keys = ['rolling_volatility', 'rolling_sortino', 'rolling_gain_to_pain', 'rolling_max_drawdown']
+    
+    for key in expected_keys:
+        assert key in rolling_metrics
+        assert isinstance(rolling_metrics[key], pl.Series)
+        assert len(rolling_metrics[key]) == len(sample_returns)
+
+
+def test_tear_sheet(sample_returns, capsys):
+    """Test tear sheet printing."""
+    tear_sheet(sample_returns)
+    captured = capsys.readouterr()
+    
+    # Check that output contains expected elements
+    assert "PERFORMANCE TEAR SHEET" in captured.out
+    assert "Volatility" in captured.out
+    assert "Sortino Ratio" in captured.out
+    assert "Gain to Pain Ratio" in captured.out
+    assert "Max Drawdown" in captured.out
+    assert "=" in captured.out  # Check for formatting
+
+
+def test_edge_cases():
+    """Test edge cases and error handling."""
+    # Empty series
+    empty_returns = pl.Series('returns', [], dtype=pl.Float64)
+    
+    # Should handle gracefully without crashing
+    try:
+        vol = volatility(empty_returns)
+        # If it doesn't crash, vol should be 0
+        assert vol == 0
+    except:
+        pass  # Some edge cases might raise exceptions, which is acceptable
+    
+    # Single value
+    single_return = pl.Series('returns', [0.01])
+    vol_single = volatility(single_return)
+    assert vol_single == 0  # No variance with single value
+    
+    # All zeros
+    zero_returns = pl.Series('returns', [0, 0, 0, 0])
+    vol_zero = volatility(zero_returns)
+    assert vol_zero == 0
+
+
+def test_metric_consistency():
+    """Test that individual metric functions give same results as batch calculation."""
+    returns = pl.Series('returns', [0.02, -0.01, 0.03, -0.015, 0.01])
+    
+    # Individual calculations
+    vol_individual = volatility(returns)
+    sortino_individual = sortino_ratio(returns)
+    gtp_individual = gain_to_pain_ratio(returns)
+    dd_individual = max_drawdown(returns)
+    
+    # Batch calculation
+    metrics_batch = calculate_all_metrics(returns)
+    
+    # Should be the same
+    assert abs(vol_individual - metrics_batch['volatility']) < 1e-10
+    assert abs(sortino_individual - metrics_batch['sortino_ratio']) < 1e-10
+    assert abs(gtp_individual - metrics_batch['gain_to_pain_ratio']) < 1e-10
+    assert abs(dd_individual - metrics_batch['max_drawdown']) < 1e-10

@@ -1,5 +1,3 @@
-wrts/
-wrtrade.egg-info/
-__pycache__/
-.pytest_cache/
-.coverage
+wrtrade.egg-info
+.venv
+__pycache__

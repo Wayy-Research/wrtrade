@@ -1,6 +1,2 @@
-import pytest
-from wrtrade.strategy import Strategy
-
-def test_strategy_abstract_class():
-    with pytest.raises(TypeError):
-        Strategy()  # Should raise TypeError as it's an abstract class
+# test_strategy.py is no longer needed - Strategy abstraction was removed
+# All strategy logic should now be implemented as direct signal generation functions
