@@ -1,61 +1,48 @@
 import pytest
 import pandas as pd
-from datetime import datetime
+import numpy as np
 from wrtrade.portfolio import Portfolio
 
 @pytest.fixture
-def sample_portfolio():
-    return Portfolio(initial_capital=10000)
-
-@pytest.fixture
 def sample_market_data():
-    return pd.Series([150.0, 160.0, 170.0])
+    dates = pd.date_range(start='2022-01-01', periods=100, freq='D')
+    return pd.Series(np.random.normal(100, 10, 100), index=dates)
 
 @pytest.fixture
 def sample_signals():
-    return pd.Series([1, -1, 1])
+    dates = pd.date_range(start='2022-01-01', periods=100, freq='D')
+    return pd.Series(np.random.choice([-1, 0, 1], 100), index=dates)
+
+@pytest.fixture
+def sample_portfolio(sample_market_data, sample_signals):
+    return Portfolio(sample_market_data, sample_signals)
 
 def test_portfolio_initialization(sample_portfolio):
-    assert sample_portfolio.initial_capital == 10000
-    assert sample_portfolio.current_capital == 10000
-    assert sample_portfolio.trades == []
-    assert sample_portfolio.position == []
+    assert isinstance(sample_portfolio, Portfolio)
+    assert isinstance(sample_portfolio.market_data, pd.Series)
+    assert isinstance(sample_portfolio.signals, pd.Series)
+    assert isinstance(sample_portfolio.params, dict)
+    assert 'stop' in sample_portfolio.params
+    assert 'tp' in sample_portfolio.params
 
-def test_market_returns(sample_portfolio, sample_market_data, sample_signals):
-    sample_portfolio.generate_trades(sample_market_data, sample_signals)
-    sample_portfolio.calculate_returns(sample_market_data)
-    assert sample_portfolio.market_returns[0] == 0
-    assert round(sample_portfolio.market_returns[1], 2) == 0.06
-    assert round(sample_portfolio.market_returns[2], 2) == 0.06
+def test_calculate_market_returns(sample_portfolio):
+    sample_portfolio.calculate_market_returns()
+    assert isinstance(sample_portfolio.market_returns, pd.Series)
+    assert len(sample_portfolio.market_returns) == len(sample_portfolio.market_data)
+    assert np.isclose(sample_portfolio.market_returns.iloc[0], 0)
 
+def test_calculate_portfolio_returns(sample_portfolio):
+    sample_portfolio.calculate_portfolio_returns()
+    assert isinstance(sample_portfolio.cumulative_returns, pd.Series)
+    assert len(sample_portfolio.cumulative_returns) == len(sample_portfolio.market_data)
+    assert isinstance(sample_portfolio.position, pd.Series)
+    assert len(sample_portfolio.position) == len(sample_portfolio.market_data)
 
-def test_trade_creation(sample_portfolio, sample_market_data, sample_signals):
-    sample_portfolio.generate_trades(sample_market_data, sample_signals)
-    sample_portfolio.calculate_returns(sample_market_data)
-    assert sample_portfolio.trades[0] == {'dt': 0, 'price': 150.0, 'direction': 1}
-    assert sample_portfolio.trades[1] == {'dt': 1, 'price': 160.0, 'direction': -1}
-    assert sample_portfolio.trades[2] == {'dt': 2, 'price': 170.0, 'direction': 1}
-
-
-def test_generate_position(sample_portfolio, sample_market_data, sample_signals):
-    sample_portfolio.generate_trades(sample_market_data, sample_signals)
-    sample_portfolio.calculate_returns(sample_market_data)
-    assert sample_portfolio.position[0] == 1
-    assert sample_portfolio.position[1] == 0
-    assert sample_portfolio.position[2] == 1
-
-
-def test_cumulative_creation(sample_portfolio, sample_market_data, sample_signals):
-    sample_portfolio.generate_trades(sample_market_data, sample_signals)
-    sample_portfolio.calculate_returns(sample_market_data)
-    assert sample_portfolio.cumulative[0] == 0
-    assert sample_portfolio.cumulative[1] == 0
-    assert round(sample_portfolio.cumulative[2], 2) == 0.06
-
-
-def test_notional_creation(sample_portfolio, sample_market_data, sample_signals):
-    sample_portfolio.generate_trades(sample_market_data, sample_signals)
-    sample_portfolio.calculate_returns(sample_market_data)
-    assert sample_portfolio.notional[0] == 10000
-    assert sample_portfolio.notional[1] == 10000
-    assert round(sample_portfolio.notional[2], 2) == 10606.25
+def test_get_results(sample_portfolio):
+    sample_portfolio.calculate_portfolio_returns()
+    results = sample_portfolio.get_results()
+    assert isinstance(results, dict)
+    assert 'cumulative_return' in results
+    assert isinstance(results['cumulative_return'], float)
+    assert 'trades' in results
+    assert isinstance(results['trades'], pd.DataFrame)

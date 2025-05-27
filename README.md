@@ -23,3 +23,5 @@ p = wrt.Portfolio(market_data, signals)
 p.calculate_portfolio_returns()
 p.get_results()
 ```
+
+## Deploying strategy
