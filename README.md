@@ -24,11 +24,12 @@ pip install .
 import polars as pl
 import numpy as np
 import wrtrade as wrt
+from datetime import date
 
 # Generate sample data with Polars
-dates = pl.date_range(start='2022-01-01', end='2023-12-31', interval='1d')
-prices = pl.Series('price', np.random.normal(100, 10, len(dates)))
-signals = pl.Series('signal', np.random.choice([-1, 0, 1], len(dates)))
+dates = pl.date_range(date(2022, 1, 1), date(2023, 12, 31), "1d", eager=True).alias("date")
+prices = pl.Series('price', np.random.normal(100, 10, dates.len()))
+signals = pl.Series('signal', np.random.choice([-1, 0, 1], dates.len()))
 
 # Create portfolio and run backtest
 portfolio = wrt.Portfolio(prices, signals, max_position=5)

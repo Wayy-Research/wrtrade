@@ -110,29 +110,33 @@ class Portfolio:
         except ImportError:
             raise ImportError("matplotlib required for plotting")
         
-        # Convert to pandas for matplotlib compatibility
-        prices_pd = self.prices.to_pandas()
-        positions_pd = self.positions.to_pandas() 
-        cumret_pd = self.cumulative_returns.to_pandas()
+        # Use Polars data directly with numpy conversion
+        prices_vals = self.prices.to_numpy()
+        positions_vals = self.positions.to_numpy()
+        cumret_vals = self.cumulative_returns.to_numpy()
+        
+        # Create simple index for x-axis
+        x_axis = range(len(prices_vals))
         
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
         
         # Prices
-        ax1.plot(prices_pd.index, prices_pd.values, label='Price')
+        ax1.plot(x_axis, prices_vals, label='Price')
         ax1.set_ylabel('Price')
         ax1.set_title('Market Price')
         ax1.legend()
         
         # Positions  
-        ax2.plot(positions_pd.index, positions_pd.values, label='Position')
+        ax2.plot(x_axis, positions_vals, label='Position')
         ax2.set_ylabel('Position')
         ax2.set_title('Portfolio Position')
         ax2.legend()
         
         # Cumulative returns
-        ax3.plot(cumret_pd.index, cumret_pd.values, label='Portfolio Returns') 
+        ax3.plot(x_axis, cumret_vals, label='Portfolio Returns') 
         ax3.set_ylabel('Cumulative Returns')
         ax3.set_title('Portfolio Cumulative Returns')
+        ax3.set_xlabel('Time Period')
         ax3.legend()
         
         plt.tight_layout()
