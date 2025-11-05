@@ -9,7 +9,7 @@ Ultra-fast Python backtesting and trading framework. Built with Polars for speed
 - Composable portfolio architecture
 - Statistical validation (permutation testing)
 - Kelly criterion optimization
-- Simple deployment to paper/live trading
+- CLI-based deployment to paper/live trading
 
 ## Install
 
@@ -108,37 +108,69 @@ for level in results['level_optimizations']:
 
 ## Deployment
 
-### Python API
+### 1. Create a Strategy File
 
-Simple deployment for programmatic control:
+Create a Python file with a `build_portfolio()` function:
 
 ```python
-import os
+# my_strategy.py
 import wrtrade as wrt
+import polars as pl
 
-# Set credentials
-os.environ['ALPACA_API_KEY'] = 'your_key'
-os.environ['ALPACA_SECRET_KEY'] = 'your_secret'
+def ma_crossover_signal(prices: pl.Series) -> pl.Series:
+    """Moving average crossover signal."""
+    fast = prices.rolling_mean(10)
+    slow = prices.rolling_mean(30)
+    return (fast > slow).cast(int) - (fast < slow).cast(int)
 
-# Build and validate
-portfolio = builder.create_portfolio("MyStrategy", [trend_comp, mom_comp])
+def build_portfolio():
+    """Build the trading portfolio."""
+    builder = wrt.NDimensionalPortfolioBuilder()
 
-if wrt.validate_strategy(portfolio, prices, min_sortino=1.0):
-    # Deploy to paper trading
-    deployment_id = await wrt.deploy(
-        portfolio,
-        symbols={'Trend': 'AAPL', 'Momentum': 'AAPL'},
-        config=wrt.DeployConfig(broker='alpaca', paper=True)
+    ma_component = builder.create_signal_component(
+        "MA_Crossover",
+        ma_crossover_signal
     )
-    print(f"Deployed: {deployment_id}")
+
+    return builder.create_portfolio("MA_Strategy", [ma_component])
+
+if __name__ == "__main__":
+    # Backtest code here for testing
+    import numpy as np
+    np.random.seed(42)
+    prices = pl.Series([100 * (1 + r) for r in np.cumsum(np.random.normal(0.001, 0.02, 252))])
+
+    portfolio = build_portfolio()
+    manager = wrt.AdvancedPortfolioManager(portfolio)
+    results = manager.backtest(prices)
+
+    print(f"Sortino: {results['portfolio_metrics']['sortino_ratio']:.2f}")
 ```
 
-### CLI Deployment
+### 2. Test Locally
 
-For production strategies, use the CLI:
+Run the strategy file to backtest:
 
 ```bash
-# Deploy a strategy
+python my_strategy.py
+```
+
+### 3. Set Up Credentials
+
+```bash
+# Set environment variables
+export ALPACA_API_KEY="your_api_key"
+export ALPACA_SECRET_KEY="your_secret_key"
+
+# Or create .env file
+echo "ALPACA_API_KEY=your_api_key" > .env
+echo "ALPACA_SECRET_KEY=your_secret_key" >> .env
+```
+
+### 4. Deploy with CLI
+
+```bash
+# Deploy the strategy
 wrtrade strategy deploy my_strategy.py \
     --name my_strategy \
     --broker alpaca \
@@ -151,57 +183,86 @@ wrtrade strategy start my_strategy
 wrtrade strategy status my_strategy
 wrtrade strategy logs my_strategy --follow
 
-# Stop
+# Stop when done
 wrtrade strategy stop my_strategy
 ```
 
-The CLI manages long-running strategies as background processes with automatic restarts, logging, and monitoring.
+The CLI manages your strategy as a background process with automatic restarts, logging, and monitoring.
 
-## Complete Example
+## Example Strategies
 
-End-to-end workflow from development to deployment:
+See the `examples/` directory for complete strategy examples:
+
+### Simple Strategy
+```bash
+# Test it
+python examples/simple_strategy.py
+
+# Deploy it
+wrtrade strategy deploy examples/simple_strategy.py \
+    --name simple_ma \
+    --broker alpaca \
+    --symbols AAPL
+
+wrtrade strategy start simple_ma
+```
+
+### Multi-Strategy Portfolio
+```bash
+# Test it
+python examples/multi_strategy.py
+
+# Deploy it
+wrtrade strategy deploy examples/multi_strategy.py \
+    --name multi_strat \
+    --broker alpaca \
+    --symbols AAPL,TSLA,MSFT
+
+wrtrade strategy start multi_strat
+```
+
+## Complete Workflow
+
+End-to-end development to deployment:
 
 ```python
+# 1. Define strategy (my_strategy.py)
 import wrtrade as wrt
 import polars as pl
-import numpy as np
 
-# 1. Get price data
-prices = pl.Series([...])  # Your price data
-
-# 2. Define strategy
 def my_signal(prices):
     sma = prices.rolling_mean(20)
     return (prices > sma).cast(int) - (prices < sma).cast(int)
 
-# 3. Build portfolio
-builder = wrt.NDimensionalPortfolioBuilder()
-component = builder.create_signal_component("SMA", my_signal)
-portfolio = builder.create_portfolio("SMA_Strategy", [component])
+def build_portfolio():
+    builder = wrt.NDimensionalPortfolioBuilder()
+    component = builder.create_signal_component("SMA", my_signal)
+    return builder.create_portfolio("SMA_Strategy", [component])
 
-# 4. Backtest
-manager = wrt.AdvancedPortfolioManager(portfolio)
-results = manager.backtest(prices)
-print(f"Sortino: {results['portfolio_metrics']['sortino_ratio']:.2f}")
+# 2. Backtest
+if __name__ == "__main__":
+    import numpy as np
+    prices = pl.Series([...])  # Your data
 
-# 5. Optimize (optional)
-optimizer = wrt.HierarchicalKellyOptimizer()
-optimizer.optimize_portfolio(portfolio, prices, rebalance=True)
+    portfolio = build_portfolio()
+    manager = wrt.AdvancedPortfolioManager(portfolio)
+    results = manager.backtest(prices)
+    print(f"Sortino: {results['portfolio_metrics']['sortino_ratio']:.2f}")
 
-# 6. Validate (recommended)
-tester = wrt.PermutationTester(wrt.PermutationConfig(n_permutations=1000))
-perm = tester.run_insample_test(prices, lambda p: portfolio, 'sortino_ratio')
+    # 3. Validate
+    tester = wrt.PermutationTester(wrt.PermutationConfig(n_permutations=1000))
+    perm = tester.run_insample_test(prices, lambda p: portfolio, 'sortino_ratio')
 
-if perm['p_value'] < 0.05:
-    # 7. Deploy
-    deployment_id = await wrt.deploy(
-        portfolio,
-        symbols={'SMA': 'AAPL'},
-        config=wrt.DeployConfig(broker='alpaca', paper=True)
-    )
-    print(f"✓ Deployed: {deployment_id}")
-else:
-    print("✗ Strategy not statistically significant")
+    if perm['p_value'] < 0.05:
+        print("✓ Ready to deploy!")
+    else:
+        print("✗ Needs improvement")
+```
+
+Then deploy via CLI:
+```bash
+wrtrade strategy deploy my_strategy.py --name sma_strat --broker alpaca --symbols AAPL
+wrtrade strategy start sma_strat
 ```
 
 ## API Reference
@@ -243,35 +304,18 @@ results = optimizer.optimize_portfolio(portfolio, prices, rebalance=True)
 ### Validation
 
 ```python
-# Simple validation
-passed = wrt.validate_strategy(portfolio, prices, min_sortino=1.0)
-
 # Permutation testing
 config = wrt.PermutationConfig(n_permutations=1000, parallel=True)
 tester = wrt.PermutationTester(config)
 results = tester.run_insample_test(prices, strategy_func, 'sortino_ratio')
 
 # Walk-forward testing
-results = tester.run_walkforward_test(prices, strategy_func, train_window=252, metric='sortino_ratio')
-```
-
-### Deployment
-
-```python
-# Configure deployment
-config = wrt.DeployConfig(
-    broker='alpaca',        # 'alpaca' supported
-    paper=True,             # Paper trading (recommended)
-    max_position_pct=0.10,  # 10% max per position
-    max_daily_loss_pct=0.05 # 5% daily loss limit
+results = tester.run_walkforward_test(
+    prices,
+    strategy_func,
+    train_window=252,
+    metric='sortino_ratio'
 )
-
-# Deploy
-deployment_id = await wrt.deploy(portfolio, symbols, config)
-
-# Validate before deploying
-if wrt.validate_strategy(portfolio, prices, min_sortino=1.0):
-    deployment_id = await wrt.deploy(portfolio, symbols, config)
 ```
 
 ### Metrics
@@ -296,7 +340,7 @@ rolling = wrt.calculate_all_rolling_metrics(returns, window=252)
 # Initialize workspace
 wrtrade init
 
-# Strategy management
+# Strategy deployment and management
 wrtrade strategy deploy <file> --name <name> --broker <broker> --symbols <symbols>
 wrtrade strategy start <name>
 wrtrade strategy stop <name>
@@ -304,6 +348,17 @@ wrtrade strategy restart <name>
 wrtrade strategy status [name]
 wrtrade strategy logs <name> [--follow] [--lines N]
 wrtrade strategy remove <name> [--remove-data]
+
+# Deployment options
+wrtrade strategy deploy my_strategy.py \
+    --name my_strat \
+    --broker alpaca \
+    --symbols AAPL,TSLA \
+    --max-position 1000 \
+    --risk-per-trade 0.02 \
+    --cycle-minutes 5 \
+    --kelly-optimization \
+    --auto-restart
 
 # Broker info
 wrtrade broker list
@@ -344,46 +399,27 @@ manager.print_structure()
 #     RSI (weight: 1.000)
 ```
 
-## Configuration
+## Strategy File Requirements
 
-### Environment Variables
-
-```bash
-# Broker credentials
-export ALPACA_API_KEY="your_key"
-export ALPACA_SECRET_KEY="your_secret"
-
-# Or use .env file
-echo "ALPACA_API_KEY=your_key" > .env
-echo "ALPACA_SECRET_KEY=your_secret" >> .env
-```
-
-### Strategy Files
-
-Create deployable strategy files:
+Your strategy file must have a `build_portfolio()` function that returns a portfolio:
 
 ```python
-# my_strategy.py
 import wrtrade as wrt
 
 def build_portfolio():
-    def signal(prices):
-        ma = prices.rolling_mean(20)
-        return (prices > ma).cast(int) - (prices < ma).cast(int)
-
+    """
+    Required function for deployment.
+    Must return a CompositePortfolio.
+    """
     builder = wrt.NDimensionalPortfolioBuilder()
-    component = builder.create_signal_component("MA20", signal)
-    return builder.create_portfolio("MA20_Strategy", [component])
-
-if __name__ == "__main__":
-    # Backtest logic here
-    pass
+    # ... build your portfolio
+    return portfolio
 ```
 
-Deploy with:
-```bash
-wrtrade strategy deploy my_strategy.py --name ma20 --broker alpaca --symbols AAPL
-```
+The CLI will:
+1. Import your file
+2. Call `build_portfolio()`
+3. Deploy the returned portfolio with your specified symbols
 
 ## Performance
 
@@ -417,6 +453,25 @@ pytest tests/ -v
 
 Current coverage: **113 tests passing**
 
+## Directory Structure
+
+```
+wrtrade/
+├── examples/
+│   ├── simple_strategy.py      # Basic MA crossover
+│   └── multi_strategy.py       # Multi-strategy portfolio
+├── wrtrade/
+│   ├── __init__.py
+│   ├── portfolio.py            # Core backtesting
+│   ├── components.py           # Portfolio components
+│   ├── ndimensional_portfolio.py  # Portfolio builder
+│   ├── kelly.py                # Kelly optimization
+│   ├── permutation.py          # Statistical validation
+│   ├── metrics.py              # Performance metrics
+│   └── cli.py                  # CLI commands
+└── tests/                      # Test suite
+```
+
 ## Contributing
 
 Contributions welcome! Please:
@@ -432,5 +487,5 @@ MIT License - see LICENSE file for details.
 ## Support
 
 - **Issues**: https://github.com/wayy-research/wrtrade/issues
-- **Docs**: See examples/ directory
+- **Examples**: See `examples/` directory
 - **Questions**: Open an issue with the "question" label
