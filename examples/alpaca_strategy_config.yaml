@@ -1,0 +1,59 @@
+# WRTrade Strategy Configuration for Alpaca Deployment
+# This file shows all available configuration options for deploying
+# a trading strategy with Alpaca broker integration.
+
+name: "alpaca_ma_crossover"
+description: "Moving Average Crossover Strategy with Kelly Optimization on Alpaca"
+strategy_file: "examples/deployable_ma_strategy.py"
+broker_name: "alpaca"
+
+# Trading symbols (US equities available on Alpaca)
+symbols:
+  - "AAPL"  # Apple Inc.
+  - "TSLA"  # Tesla Inc.
+  - "MSFT"  # Microsoft Corp.
+  - "GOOGL" # Alphabet Inc.
+  - "AMZN"  # Amazon.com Inc.
+
+# Risk Management Settings
+max_position_size: 1000.0      # Maximum dollar amount per position
+risk_per_trade: 0.02           # Risk 2% of account per trade
+max_daily_trades: 10           # Maximum trades per day
+stop_loss_percent: 0.05        # 5% stop loss
+take_profit_percent: 0.10      # 10% take profit
+max_drawdown_percent: 0.20     # 20% maximum drawdown before stopping
+
+# Strategy Execution Settings
+cycle_interval_minutes: 5      # Run strategy every 5 minutes
+market_hours_only: true        # Only trade during market hours
+enable_kelly_optimization: true    # Use Kelly criterion for position sizing
+enable_permutation_testing: false # Disable permutation testing for live trading
+
+# Logging and Monitoring
+log_level: "INFO"             # DEBUG, INFO, WARNING, ERROR
+save_trades: true             # Save trade history
+save_performance: true        # Save performance metrics
+
+# Deployment Settings
+auto_restart: true            # Automatically restart if strategy crashes
+max_restarts: 3               # Maximum restart attempts
+health_check_interval: 60     # Health check every 60 seconds
+
+# Alpaca-Specific Settings (optional environment variables)
+# These can be set as environment variables instead of hardcoding:
+# ALPACA_API_KEY=your_api_key_here
+# ALPACA_SECRET_KEY=your_secret_key_here
+# ALPACA_BASE_URL=https://paper-api.alpaca.markets  (for paper trading)
+# ALPACA_BASE_URL=https://api.alpaca.markets        (for live trading - BE CAREFUL!)
+
+# Paper Trading (recommended for testing)
+paper_trading: true
+
+# Additional Strategy Parameters (strategy-specific)
+strategy_parameters:
+  fast_ma_period: 10
+  slow_ma_period: 30
+  momentum_lookback: 14
+  momentum_threshold: 0.02
+  signal_threshold: 0.3        # Minimum signal strength to trade
+  strength_threshold: 0.5      # Minimum component agreement to trade

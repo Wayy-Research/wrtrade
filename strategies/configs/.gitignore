@@ -1,0 +1,11 @@
+# Ignore actual API configuration files with real credentials
+alpaca_config.py
+robinhood_config.py
+*.env
+.env*
+*_credentials.py
+*_secrets.py
+
+# Keep templates
+!*_template.py
+!.gitignore
