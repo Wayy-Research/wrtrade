@@ -2,14 +2,16 @@
 
 Ultra-fast Python backtesting and trading framework. Built with Polars for speed, designed for simplicity.
 
-## Philosophy
+## For Quantitative Traders
 
-**Simple is better than complex.** wrtrade provides the essential tools for systematic trading:
-- Fast backtesting with Polars (10-50x faster than pandas)
-- Composable portfolio architecture
-- Statistical validation (permutation testing)
-- Kelly criterion optimization
-- CLI-based deployment to paper/live trading
+You have a trading idea. You want to test it, validate it's not overfit, optimize position sizing, and deploy it to live trading. wrtrade makes this workflow simple and fast.
+
+**The Journey:**
+1. **Research** - Develop your strategy and backtest it
+2. **Validate** - Use permutation testing to ensure it's statistically significant
+3. **Optimize** - Apply Kelly criterion for optimal position sizing
+4. **Paper Trade** - Deploy to paper trading to verify in live markets
+5. **Go Live** - Deploy to live trading with confidence
 
 ## Install
 
@@ -19,65 +21,72 @@ cd wrtrade
 pip install -e .
 ```
 
-## Quick Start
+## Step 1: Research & Backtest
 
-### Basic Backtest
+Start with an idea. Let's say you think a simple moving average crossover might work.
+
+### Your First Backtest
 
 ```python
 import wrtrade as wrt
 import polars as pl
 import numpy as np
 
-# Generate sample prices
+# Get some price data (or use your own)
 np.random.seed(42)
 prices = pl.Series([100 * (1 + r) for r in np.cumsum(np.random.normal(0.001, 0.02, 252))])
 
-# Simple buy signal
-signals = pl.Series([1] * len(prices))
-
-# Backtest
-portfolio = wrt.Portfolio(prices, signals)
-portfolio.calculate_performance()
-
-# View results
-wrt.tear_sheet(portfolio.returns)
-```
-
-### Multi-Strategy Portfolio
-
-```python
-# Define signals
-def trend_following(prices):
+# Define your signal
+def ma_crossover(prices):
     fast = prices.rolling_mean(10)
     slow = prices.rolling_mean(30)
     return (fast > slow).cast(int) - (fast < slow).cast(int)
 
-def momentum(prices):
-    ret = prices.pct_change(20)
-    return (ret > 0.05).cast(int) - (ret < -0.05).cast(int)
-
 # Build portfolio
 builder = wrt.NDimensionalPortfolioBuilder()
-
-trend_comp = builder.create_signal_component("Trend", trend_following, weight=0.6)
-mom_comp = builder.create_signal_component("Momentum", momentum, weight=0.4)
-
-portfolio = builder.create_portfolio("MyStrategy", [trend_comp, mom_comp])
+component = builder.create_signal_component("MA_Cross", ma_crossover)
+portfolio = builder.create_portfolio("MA_Strategy", [component])
 
 # Backtest
 manager = wrt.AdvancedPortfolioManager(portfolio)
 results = manager.backtest(prices)
 
-print(f"Sortino Ratio: {results['portfolio_metrics']['sortino_ratio']:.2f}")
+# See the results
 print(f"Total Return: {results['total_return']:.2%}")
+print(f"Sortino Ratio: {results['portfolio_metrics']['sortino_ratio']:.2f}")
+print(f"Max Drawdown: {results['portfolio_metrics']['max_drawdown']:.2%}")
+
+# Detailed performance report
+wrt.tear_sheet(results['returns'])
 ```
 
-## Statistical Validation
+**Output:**
+```
+Total Return: 15.3%
+Sortino Ratio: 1.45
+Max Drawdown: -8.2%
 
-Avoid overfitting with permutation testing:
+=== Performance Metrics ===
+Volatility (Annual): 18.5%
+Sortino Ratio: 1.45
+Gain-to-Pain: 2.31
+Max Drawdown: -8.2%
+```
+
+Great! Your strategy looks promising. But is it real or just luck?
+
+## Step 2: Validate with Permutation Testing
+
+**The Problem:** Many strategies look great in backtests but fail in live trading. Why? Overfitting.
+
+**The Solution:** Permutation testing. This scrambles your price data thousands of times while preserving statistical properties. If your strategy only works on the exact historical sequence, it's probably overfit.
 
 ```python
-tester = wrt.PermutationTester(wrt.PermutationConfig(n_permutations=1000))
+# Test if your strategy is statistically significant
+tester = wrt.PermutationTester(wrt.PermutationConfig(
+    n_permutations=1000,
+    parallel=False  # Set to True for faster testing
+))
 
 results = tester.run_insample_test(
     prices,
@@ -85,117 +94,281 @@ results = tester.run_insample_test(
     metric='sortino_ratio'
 )
 
+print(f"Your Strategy: {results['real_performance']:.2f}")
+print(f"Random Average: {results['permutation_mean']:.2f}")
 print(f"P-value: {results['p_value']:.4f}")
+
 if results['p_value'] < 0.05:
-    print("✓ Strategy is statistically significant")
+    print("✓ Strategy is statistically significant!")
+    print("  Your edge is unlikely due to chance.")
+else:
+    print("✗ Strategy may be overfit")
+    print("  Performance could be due to luck.")
 ```
 
-## Kelly Optimization
+**What does this mean?**
+- **P-value < 0.05**: Your strategy performs significantly better than random chance
+- **P-value > 0.05**: Your strategy might just be lucky - keep researching!
 
-Optimize position sizing for maximum geometric growth:
+### Walk-Forward Testing
+
+Even better - test your strategy on data it's never seen:
 
 ```python
-optimizer = wrt.HierarchicalKellyOptimizer(
-    wrt.KellyConfig(lookback_window=252, max_leverage=1.0)
+# Split data into train/test periods
+results = tester.run_walkforward_test(
+    prices,
+    lambda p: portfolio,
+    train_window=252,  # Train on 1 year
+    metric='sortino_ratio'
 )
 
-# Optimize entire portfolio hierarchy
-results = optimizer.optimize_portfolio(portfolio, prices, rebalance=True)
-
-for level in results['level_optimizations']:
-    print(f"{level['portfolio_name']}: {level['kelly_weights']}")
+print(f"Out-of-Sample P-value: {results['p_value']:.4f}")
 ```
 
-## Deployment
+If your strategy passes both in-sample AND out-of-sample tests, you have a robust edge.
 
-### 1. Create a Strategy File
+## Step 3: Optimize Position Sizing
 
-Create a Python file with a `build_portfolio()` function:
+You have a validated strategy. Now optimize how much to bet using the Kelly criterion.
+
+**The Kelly Criterion** tells you the optimal fraction of capital to allocate for maximum long-term growth.
+
+```python
+# Apply Kelly optimization
+optimizer = wrt.HierarchicalKellyOptimizer(wrt.KellyConfig(
+    lookback_window=252,      # Use 1 year of data
+    max_leverage=1.0,         # No leverage (conservative)
+    rebalance_frequency=21,   # Rebalance monthly
+    risk_free_rate=0.02       # 2% risk-free rate
+))
+
+kelly_results = optimizer.optimize_portfolio(portfolio, prices, rebalance=True)
+
+print("=== Kelly Optimization ===")
+for level in kelly_results['level_optimizations']:
+    print(f"Strategy: {level['portfolio_name']}")
+    print(f"  Optimal Allocation: {level['kelly_weights']}")
+    print(f"  Expected Sharpe: {level['metrics']['sharpe_ratio']:.2f}")
+```
+
+**What changed?**
+Your portfolio now uses Kelly-optimal position sizing instead of equal weights. This maximizes long-term growth while controlling risk.
+
+## Step 4: Combine Multiple Strategies
+
+Don't put all your eggs in one basket. Combine multiple strategies for diversification.
+
+```python
+# Define multiple signals
+def trend_following(prices):
+    fast = prices.rolling_mean(10)
+    slow = prices.rolling_mean(30)
+    return (fast > slow).cast(int) - (fast < slow).cast(int)
+
+def momentum(prices):
+    returns = prices.pct_change(20)
+    return (returns > 0.05).cast(int) - (returns < -0.05).cast(int)
+
+def mean_reversion(prices):
+    sma = prices.rolling_mean(20)
+    std = prices.rolling_std(20)
+    z_score = (prices - sma) / std
+    # Buy when oversold, sell when overbought
+    return (z_score < -2).cast(int) - (z_score > 2).cast(int)
+
+# Build hierarchical portfolio
+builder = wrt.NDimensionalPortfolioBuilder()
+
+# Create individual components
+trend = builder.create_signal_component("Trend", trend_following, weight=0.4)
+mom = builder.create_signal_component("Momentum", momentum, weight=0.3)
+mean_rev = builder.create_signal_component("MeanRev", mean_reversion, weight=0.3)
+
+# Combine into master portfolio
+portfolio = builder.create_portfolio("Multi_Strategy", [trend, mom, mean_rev])
+
+# View structure
+manager = wrt.AdvancedPortfolioManager(portfolio)
+manager.print_structure()
+```
+
+**Output:**
+```
+=== Portfolio Structure: Multi_Strategy ===
+Multi_Strategy (weight: 1.000)
+  Trend (weight: 0.400)
+  Momentum (weight: 0.300)
+  MeanRev (weight: 0.300)
+```
+
+Now validate and optimize this multi-strategy portfolio the same way!
+
+## Step 5: Deploy to Paper Trading
+
+You've researched, validated, and optimized. Time to test in live markets - but safely.
+
+### Create a Deployable Strategy File
 
 ```python
 # my_strategy.py
 import wrtrade as wrt
 import polars as pl
 
-def ma_crossover_signal(prices: pl.Series) -> pl.Series:
-    """Moving average crossover signal."""
+def trend_signal(prices: pl.Series) -> pl.Series:
+    """Your validated trend following signal."""
     fast = prices.rolling_mean(10)
     slow = prices.rolling_mean(30)
     return (fast > slow).cast(int) - (fast < slow).cast(int)
 
+def momentum_signal(prices: pl.Series) -> pl.Series:
+    """Your validated momentum signal."""
+    returns = prices.pct_change(20)
+    return (returns > 0.05).cast(int) - (returns < -0.05).cast(int)
+
 def build_portfolio():
-    """Build the trading portfolio."""
+    """
+    Required function for deployment.
+    The CLI calls this to get your portfolio.
+    """
     builder = wrt.NDimensionalPortfolioBuilder()
 
-    ma_component = builder.create_signal_component(
-        "MA_Crossover",
-        ma_crossover_signal
-    )
+    trend = builder.create_signal_component("Trend", trend_signal, weight=0.6)
+    mom = builder.create_signal_component("Momentum", momentum_signal, weight=0.4)
 
-    return builder.create_portfolio("MA_Strategy", [ma_component])
+    return builder.create_portfolio("My_Strategy", [trend, mom])
 
+# Backtest when run directly
 if __name__ == "__main__":
-    # Backtest code here for testing
     import numpy as np
-    np.random.seed(42)
-    prices = pl.Series([100 * (1 + r) for r in np.cumsum(np.random.normal(0.001, 0.02, 252))])
+
+    # Load your data
+    prices = pl.Series([...])  # Your historical prices
 
     portfolio = build_portfolio()
     manager = wrt.AdvancedPortfolioManager(portfolio)
     results = manager.backtest(prices)
 
     print(f"Sortino: {results['portfolio_metrics']['sortino_ratio']:.2f}")
+
+    # Validate
+    tester = wrt.PermutationTester(wrt.PermutationConfig(n_permutations=1000))
+    perm = tester.run_insample_test(prices, lambda p: portfolio, 'sortino_ratio')
+
+    if perm['p_value'] < 0.05:
+        print("✓ Ready to deploy!")
 ```
 
-### 2. Test Locally
-
-Run the strategy file to backtest:
+### Test Locally First
 
 ```bash
 python my_strategy.py
 ```
 
-### 3. Set Up Credentials
+Make sure everything works before deploying.
+
+### Set Up Broker Credentials
 
 ```bash
-# Set environment variables
-export ALPACA_API_KEY="your_api_key"
-export ALPACA_SECRET_KEY="your_secret_key"
+# Get API keys from Alpaca (alpaca.markets)
+# Start with paper trading account (free)
 
-# Or create .env file
-echo "ALPACA_API_KEY=your_api_key" > .env
-echo "ALPACA_SECRET_KEY=your_secret_key" >> .env
+export ALPACA_API_KEY="PK..."
+export ALPACA_SECRET_KEY="..."
 ```
 
-### 4. Deploy with CLI
+### Deploy to Paper Trading
 
 ```bash
-# Deploy the strategy
+# Deploy your strategy
 wrtrade strategy deploy my_strategy.py \
     --name my_strategy \
     --broker alpaca \
-    --symbols AAPL,TSLA,MSFT
+    --symbols AAPL,TSLA,MSFT \
+    --max-position 1000 \
+    --risk-per-trade 0.02 \
+    --cycle-minutes 5 \
+    --kelly-optimization
 
-# Start trading
+# Start trading (paper money)
 wrtrade strategy start my_strategy
-
-# Monitor
-wrtrade strategy status my_strategy
-wrtrade strategy logs my_strategy --follow
-
-# Stop when done
-wrtrade strategy stop my_strategy
 ```
 
-The CLI manages your strategy as a background process with automatic restarts, logging, and monitoring.
+**What's happening?**
+- wrtrade runs your strategy in the background
+- Every 5 minutes, it fetches new prices
+- Generates signals using your portfolio
+- Places trades with your broker (paper account)
+- Automatically restarts if it crashes
+- Logs everything
 
-## Example Strategies
+### Monitor Your Paper Trading
 
-See the `examples/` directory for complete strategy examples:
-
-### Simple Strategy
 ```bash
-# Test it
+# Check status
+wrtrade strategy status my_strategy
+
+# Watch logs in real-time
+wrtrade strategy logs my_strategy --follow
+
+# See all strategies
+wrtrade strategy status
+```
+
+**Output:**
+```
+🟢 my_strategy: RUNNING (2h 15m)
+   Status: RUNNING
+   PID: 12345
+   Uptime: 2h 15m
+   Trades: 12 (P&L: $145.32)
+   Broker: alpaca
+   Symbols: AAPL, TSLA, MSFT
+```
+
+### Let It Run
+
+Paper trade for at least 30-60 days. Watch for:
+- Does it perform as expected?
+- Are slippage and fees accounted for?
+- Does it handle market volatility?
+- Any execution issues?
+
+If everything looks good after paper trading, you're ready for live deployment.
+
+## Step 6: Go Live
+
+After successful paper trading:
+
+```bash
+# Stop paper trading
+wrtrade strategy stop my_strategy
+
+# Update credentials to live account
+export ALPACA_API_KEY="your_live_key"
+export ALPACA_SECRET_KEY="your_live_secret"
+
+# Deploy to live (same command, but with live credentials)
+wrtrade strategy deploy my_strategy.py \
+    --name my_strategy_live \
+    --broker alpaca \
+    --symbols AAPL,TSLA,MSFT \
+    --max-position 500 \
+    --risk-per-trade 0.01 \
+    --kelly-optimization
+
+# Start live trading
+wrtrade strategy start my_strategy_live
+```
+
+**Start small!** Use lower position sizes and risk limits when going live.
+
+## Examples
+
+### Simple MA Crossover
+
+```bash
+# Test the example
 python examples/simple_strategy.py
 
 # Deploy it
@@ -208,8 +381,9 @@ wrtrade strategy start simple_ma
 ```
 
 ### Multi-Strategy Portfolio
+
 ```bash
-# Test it
+# Test the example
 python examples/multi_strategy.py
 
 # Deploy it
@@ -221,48 +395,73 @@ wrtrade strategy deploy examples/multi_strategy.py \
 wrtrade strategy start multi_strat
 ```
 
-## Complete Workflow
+## Complete Workflow Example
 
-End-to-end development to deployment:
+Here's the entire journey in one script:
 
 ```python
-# 1. Define strategy (my_strategy.py)
 import wrtrade as wrt
 import polars as pl
+import numpy as np
 
+# 1. RESEARCH - Define your strategy
 def my_signal(prices):
     sma = prices.rolling_mean(20)
     return (prices > sma).cast(int) - (prices < sma).cast(int)
 
-def build_portfolio():
-    builder = wrt.NDimensionalPortfolioBuilder()
-    component = builder.create_signal_component("SMA", my_signal)
-    return builder.create_portfolio("SMA_Strategy", [component])
+# 2. BACKTEST
+builder = wrt.NDimensionalPortfolioBuilder()
+component = builder.create_signal_component("SMA20", my_signal)
+portfolio = builder.create_portfolio("SMA_Strategy", [component])
 
-# 2. Backtest
-if __name__ == "__main__":
-    import numpy as np
-    prices = pl.Series([...])  # Your data
+prices = pl.Series([...])  # Your data
+manager = wrt.AdvancedPortfolioManager(portfolio)
+results = manager.backtest(prices)
 
-    portfolio = build_portfolio()
-    manager = wrt.AdvancedPortfolioManager(portfolio)
-    results = manager.backtest(prices)
-    print(f"Sortino: {results['portfolio_metrics']['sortino_ratio']:.2f}")
+print(f"Backtest Sortino: {results['portfolio_metrics']['sortino_ratio']:.2f}")
 
-    # 3. Validate
-    tester = wrt.PermutationTester(wrt.PermutationConfig(n_permutations=1000))
-    perm = tester.run_insample_test(prices, lambda p: portfolio, 'sortino_ratio')
+# 3. VALIDATE - Permutation testing
+tester = wrt.PermutationTester(wrt.PermutationConfig(n_permutations=1000))
+perm = tester.run_insample_test(prices, lambda p: portfolio, 'sortino_ratio')
 
-    if perm['p_value'] < 0.05:
-        print("✓ Ready to deploy!")
-    else:
-        print("✗ Needs improvement")
+if perm['p_value'] >= 0.05:
+    print("✗ Strategy not significant - back to research!")
+    exit()
+
+print(f"✓ P-value: {perm['p_value']:.4f} - Strategy is significant!")
+
+# 4. OPTIMIZE - Kelly criterion
+optimizer = wrt.HierarchicalKellyOptimizer()
+kelly_results = optimizer.optimize_portfolio(portfolio, prices, rebalance=True)
+print(f"✓ Kelly optimization complete")
+
+# 5. DEPLOY - Save to file and use CLI
+print("\nReady to deploy! Use:")
+print("  wrtrade strategy deploy my_strategy.py --name sma20 --broker alpaca --symbols AAPL")
 ```
 
-Then deploy via CLI:
-```bash
-wrtrade strategy deploy my_strategy.py --name sma_strat --broker alpaca --symbols AAPL
-wrtrade strategy start sma_strat
+## Why wrtrade?
+
+### Fast
+Built on Polars - **10-50x faster** than pandas-based frameworks. Backtest millions of data points in seconds.
+
+### Validated
+Built-in permutation testing catches overfitting before you lose money.
+
+### Optimized
+Kelly criterion optimization for maximum long-term growth.
+
+### Production-Ready
+CLI deployment manages strategies as background processes with monitoring, logging, and auto-restart.
+
+### Simple
+Clean API. The entire workflow is straightforward:
+```python
+builder = wrt.NDimensionalPortfolioBuilder()
+component = builder.create_signal_component("MySignal", my_func)
+portfolio = builder.create_portfolio("MyStrategy", [component])
+manager = wrt.AdvancedPortfolioManager(portfolio)
+results = manager.backtest(prices)
 ```
 
 ## API Reference
@@ -274,11 +473,7 @@ wrtrade strategy start sma_strat
 portfolio = wrt.Portfolio(prices, signals, max_position=float('inf'))
 portfolio.calculate_performance()
 
-# Component-based portfolios
-component = wrt.SignalComponent(name, signal_func, weight=1.0)
-portfolio = wrt.CompositePortfolio(name, components)
-
-# Portfolio builder (recommended)
+# Component-based portfolios (recommended)
 builder = wrt.NDimensionalPortfolioBuilder()
 component = builder.create_signal_component(name, signal_func, weight=1.0)
 portfolio = builder.create_portfolio(name, [components])
@@ -288,50 +483,42 @@ manager = wrt.AdvancedPortfolioManager(portfolio)
 results = manager.backtest(prices)
 ```
 
+### Validation
+
+```python
+# Permutation testing
+config = wrt.PermutationConfig(n_permutations=1000, parallel=False)
+tester = wrt.PermutationTester(config)
+
+# In-sample test
+results = tester.run_insample_test(prices, strategy_func, 'sortino_ratio')
+
+# Walk-forward test (recommended)
+results = tester.run_walkforward_test(
+    prices, strategy_func, train_window=252, metric='sortino_ratio'
+)
+```
+
 ### Optimization
 
 ```python
 # Kelly criterion
 config = wrt.KellyConfig(lookback_window=252, max_leverage=1.0)
-optimizer = wrt.KellyOptimizer(config)
-weights = optimizer.calculate_portfolio_kelly(returns_matrix, names)
-
-# Hierarchical Kelly (for composite portfolios)
 optimizer = wrt.HierarchicalKellyOptimizer(config)
 results = optimizer.optimize_portfolio(portfolio, prices, rebalance=True)
-```
-
-### Validation
-
-```python
-# Permutation testing
-config = wrt.PermutationConfig(n_permutations=1000, parallel=True)
-tester = wrt.PermutationTester(config)
-results = tester.run_insample_test(prices, strategy_func, 'sortino_ratio')
-
-# Walk-forward testing
-results = tester.run_walkforward_test(
-    prices,
-    strategy_func,
-    train_window=252,
-    metric='sortino_ratio'
-)
 ```
 
 ### Metrics
 
 ```python
 # Performance metrics
-wrt.tear_sheet(returns)  # Print formatted report
+wrt.tear_sheet(returns)  # Detailed report
 metrics = wrt.calculate_all_metrics(returns)
 rolling = wrt.calculate_all_rolling_metrics(returns, window=252)
 
 # Available metrics:
-# - volatility (annualized)
-# - sortino_ratio
-# - gain_to_pain_ratio
-# - max_drawdown
-# - sharpe_ratio
+# - volatility, sortino_ratio, sharpe_ratio
+# - gain_to_pain_ratio, max_drawdown
 ```
 
 ## CLI Reference
@@ -340,18 +527,9 @@ rolling = wrt.calculate_all_rolling_metrics(returns, window=252)
 # Initialize workspace
 wrtrade init
 
-# Strategy deployment and management
-wrtrade strategy deploy <file> --name <name> --broker <broker> --symbols <symbols>
-wrtrade strategy start <name>
-wrtrade strategy stop <name>
-wrtrade strategy restart <name>
-wrtrade strategy status [name]
-wrtrade strategy logs <name> [--follow] [--lines N]
-wrtrade strategy remove <name> [--remove-data]
-
-# Deployment options
-wrtrade strategy deploy my_strategy.py \
-    --name my_strat \
+# Deploy strategy
+wrtrade strategy deploy <file> \
+    --name <name> \
     --broker alpaca \
     --symbols AAPL,TSLA \
     --max-position 1000 \
@@ -360,117 +538,94 @@ wrtrade strategy deploy my_strategy.py \
     --kelly-optimization \
     --auto-restart
 
+# Manage strategies
+wrtrade strategy start <name>
+wrtrade strategy stop <name>
+wrtrade strategy status [name]
+wrtrade strategy logs <name> [--follow]
+wrtrade strategy remove <name>
+
 # Broker info
 wrtrade broker list
-
-# Version
-wrtrade version
-```
-
-## Hierarchical Portfolios
-
-Build complex nested strategies:
-
-```python
-builder = wrt.NDimensionalPortfolioBuilder()
-
-# Level 1: Individual signals
-ma_fast = builder.create_signal_component("MA_Fast", fast_signal, weight=0.5)
-ma_slow = builder.create_signal_component("MA_Slow", slow_signal, weight=0.5)
-rsi = builder.create_signal_component("RSI", rsi_signal, weight=1.0)
-
-# Level 2: Strategy groups
-trend = builder.create_portfolio("Trend", [ma_fast, ma_slow], weight=0.6)
-mean_reversion = builder.create_portfolio("MeanRev", [rsi], weight=0.4)
-
-# Level 3: Master portfolio
-master = builder.create_portfolio("Master", [trend, mean_reversion])
-
-# View structure
-manager = wrt.AdvancedPortfolioManager(master)
-manager.print_structure()
-
-# Output:
-# === Portfolio Structure: Master ===
-#   Trend (weight: 0.600)
-#     MA_Fast (weight: 0.500)
-#     MA_Slow (weight: 0.500)
-#   MeanRev (weight: 0.400)
-#     RSI (weight: 1.000)
 ```
 
 ## Strategy File Requirements
 
-Your strategy file must have a `build_portfolio()` function that returns a portfolio:
+Your strategy file must have a `build_portfolio()` function:
 
 ```python
 import wrtrade as wrt
 
 def build_portfolio():
     """
-    Required function for deployment.
+    Required function - CLI calls this to get your portfolio.
     Must return a CompositePortfolio.
     """
     builder = wrt.NDimensionalPortfolioBuilder()
     # ... build your portfolio
     return portfolio
+
+if __name__ == "__main__":
+    # Optional: backtest when run directly
+    pass
 ```
-
-The CLI will:
-1. Import your file
-2. Call `build_portfolio()`
-3. Deploy the returned portfolio with your specified symbols
-
-## Performance
-
-Compared to pandas-based frameworks:
-
-- **10-50x faster** on large datasets
-- **Lower memory usage** with Polars columnar format
-- **Parallel permutation testing** with multiprocessing
-- **Vectorized operations** eliminate Python loops
-
-Perfect for:
-- High-frequency strategy development
-- Large-scale backtesting (millions of data points)
-- Parameter optimization
-- Statistical validation
-
-## Design Principles
-
-1. **Simple is better than complex** - Minimal API surface
-2. **Fast by default** - Built on Polars
-3. **Composable** - Build complex strategies from simple parts
-4. **Validated** - Statistical testing built-in
-5. **Production-ready** - CLI deployment for real trading
 
 ## Testing
 
-Run tests:
+Run the test suite:
+
 ```bash
 pytest tests/ -v
 ```
 
-Current coverage: **113 tests passing**
+**113 tests passing** - Full coverage of backtesting, validation, optimization, and deployment.
 
-## Directory Structure
+## Best Practices
 
-```
-wrtrade/
-├── examples/
-│   ├── simple_strategy.py      # Basic MA crossover
-│   └── multi_strategy.py       # Multi-strategy portfolio
-├── wrtrade/
-│   ├── __init__.py
-│   ├── portfolio.py            # Core backtesting
-│   ├── components.py           # Portfolio components
-│   ├── ndimensional_portfolio.py  # Portfolio builder
-│   ├── kelly.py                # Kelly optimization
-│   ├── permutation.py          # Statistical validation
-│   ├── metrics.py              # Performance metrics
-│   └── cli.py                  # CLI commands
-└── tests/                      # Test suite
-```
+### 1. Always Validate
+Don't trust a backtest alone. Use permutation testing to verify statistical significance.
+
+### 2. Walk-Forward Test
+In-sample tests can still overfit. Walk-forward testing simulates real trading.
+
+### 3. Start with Paper Trading
+Always paper trade for at least 30 days before going live.
+
+### 4. Use Kelly Optimization
+Kelly criterion maximizes long-term growth while controlling risk.
+
+### 5. Diversify
+Combine multiple strategies with different return profiles.
+
+### 6. Start Small
+When going live, use smaller positions than in paper trading.
+
+### 7. Monitor Everything
+Watch logs, check performance daily, especially in first weeks of live trading.
+
+## Common Pitfalls
+
+❌ **Overfitting**: Testing too many parameters until something works
+✓ **Solution**: Use permutation testing and walk-forward validation
+
+❌ **Survivorship Bias**: Only testing on stocks that survived
+✓ **Solution**: Include delisted stocks in your data
+
+❌ **Look-Ahead Bias**: Using future information
+✓ **Solution**: Careful with rolling calculations, ensure proper alignment
+
+❌ **Ignoring Costs**: Not accounting for slippage and fees
+✓ **Solution**: Paper trade first, be conservative in backtests
+
+❌ **Over-Leverage**: Taking too much risk
+✓ **Solution**: Use Kelly criterion, start with max_leverage=1.0
+
+## Performance
+
+- **10-50x faster** than pandas-based frameworks
+- **Parallel permutation testing** for faster validation
+- **Memory efficient** with Polars columnar format
+- **Scales** to millions of data points
 
 ## Contributing
 
@@ -488,4 +643,8 @@ MIT License - see LICENSE file for details.
 
 - **Issues**: https://github.com/wayy-research/wrtrade/issues
 - **Examples**: See `examples/` directory
-- **Questions**: Open an issue with the "question" label
+- **Questions**: Open an issue
+
+---
+
+**Remember**: Past performance doesn't guarantee future results. Always start with paper trading. Never risk more than you can afford to lose.
