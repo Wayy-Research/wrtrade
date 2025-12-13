@@ -53,6 +53,7 @@ setup(
         "aiohttp>=3.8.0",
         "requests>=2.28.0",
         "pandas>=1.3.0",  # For compatibility with some broker APIs
+        "wrchart>=0.1.1",  # Financial charting
     ],
     extras_require={
         "alpaca": ["alpaca-trade-api>=3.0.0"],
