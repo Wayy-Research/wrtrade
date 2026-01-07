@@ -16,9 +16,17 @@ You have a trading idea. You want to test it, validate it's not overfit, optimiz
 ## Install
 
 ```bash
-git clone https://github.com/Wayy-Research/wrtrade
-cd wrtrade
-pip install -e .
+pip install wrtrade
+```
+
+For broker integrations:
+
+```bash
+# With Alpaca support
+pip install wrtrade[alpaca]
+
+# All broker integrations
+pip install wrtrade[all]
 ```
 
 ## Step 1: Research & Backtest
