@@ -13,6 +13,18 @@ from wrtrade.kelly import KellyOptimizer, HierarchicalKellyOptimizer, KellyConfi
 # Simple deployment
 from wrtrade.deploy import deploy, validate_strategy, DeployConfig
 
+# Charting integration with wrchart
+from wrtrade.charts import (
+    BacktestChart,
+    price_chart,
+    line_chart,
+    area_chart,
+    histogram,
+    bar_chart,
+    indicator_panel,
+    plot_backtest,
+)
+
 __version__ = "2.0.0"
 
 __all__ = [
@@ -41,4 +53,14 @@ __all__ = [
     # Deployment
     'deploy',
     'DeployConfig',
+
+    # Charts (wrchart integration)
+    'BacktestChart',
+    'price_chart',
+    'line_chart',
+    'area_chart',
+    'histogram',
+    'bar_chart',
+    'indicator_panel',
+    'plot_backtest',
 ]

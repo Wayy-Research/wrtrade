@@ -500,35 +500,41 @@ class RobinhoodBrokerAdapter(BrokerAdapter):
 
 class BrokerFactory:
     """Factory for creating broker adapter instances."""
-    
+
     @staticmethod
     def create_broker(
-        broker_name: str, 
-        api_credentials: Dict[str, str], 
+        broker_name: str,
+        api_credentials: Dict[str, str],
         paper_trading: bool = True
     ) -> BrokerAdapter:
         """
         Create broker adapter instance.
-        
+
         Args:
-            broker_name: Name of broker ('alpaca', 'robinhood')
+            broker_name: Name of broker ('alpaca', 'robinhood', 'alpaca_options')
             api_credentials: API credentials dictionary
             paper_trading: Use paper trading mode
-            
+
         Returns:
             BrokerAdapter instance
         """
         if broker_name.lower() == 'alpaca':
             return AlpacaBrokerAdapter(api_credentials, paper_trading)
+        elif broker_name.lower() == 'alpaca_options':
+            # Import options adapter lazily to avoid circular imports
+            from wrtrade.brokers_options import AlpacaOptionsBrokerAdapter
+            from wrtrade.brokers_real import BrokerConfig
+            config = BrokerConfig(paper_trading=paper_trading)
+            return AlpacaOptionsBrokerAdapter(api_credentials, config)
         elif broker_name.lower() == 'robinhood':
             return RobinhoodBrokerAdapter(api_credentials, paper_trading)
         else:
             raise ValueError(f"Unknown broker: {broker_name}")
-    
+
     @staticmethod
     def get_supported_brokers() -> List[str]:
         """Get list of supported broker names."""
-        return ['alpaca', 'robinhood']
+        return ['alpaca', 'alpaca_options', 'robinhood']
 
 
 class TradingSession:
