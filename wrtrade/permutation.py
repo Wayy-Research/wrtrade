@@ -424,9 +424,9 @@ class PermutationTester:
         return results
     
     def _calculate_strategy_performance(
-        self, 
-        prices: Union[pl.Series, List[pl.Series]], 
-        strategy_func: Callable, 
+        self,
+        prices: Union[pl.Series, List[pl.Series]],
+        strategy_func: Callable,
         metric: str,
         **strategy_kwargs
     ) -> float:
@@ -434,23 +434,28 @@ class PermutationTester:
         try:
             # Execute strategy function
             result = strategy_func(prices, **strategy_kwargs)
-            
+
+            # Handle price list - use first market
+            price_series = prices[0] if isinstance(prices, list) else prices
+
             # Extract returns based on result type
-            if hasattr(result, 'calculate_returns'):
-                # Portfolio component
-                if isinstance(prices, list):
-                    returns = result.calculate_returns(prices[0])  # Use first market for now
-                else:
-                    returns = result.calculate_returns(prices)
+            # Check for new Portfolio class first (has backtest method)
+            if hasattr(result, 'backtest') and callable(result.backtest):
+                # New Portfolio class - call backtest to get Result
+                backtest_result = result.backtest(price_series)
+                returns = backtest_result.returns
+            elif hasattr(result, 'calculate_returns'):
+                # Legacy component system
+                returns = result.calculate_returns(price_series)
             elif hasattr(result, 'returns'):
-                # Object with returns attribute
+                # Object with returns attribute (e.g., Result)
                 returns = result.returns
             elif isinstance(result, pl.Series):
                 # Direct return series
                 returns = result
             else:
                 raise ValueError(f"Unsupported strategy function result type: {type(result)}")
-            
+
             # Calculate requested metric
             if metric == 'sortino_ratio':
                 return sortino_ratio(returns)
@@ -459,7 +464,7 @@ class PermutationTester:
                 return metrics[metric]
             else:
                 raise ValueError(f"Unsupported metric: {metric}")
-                
+
         except Exception as e:
             logger.warning(f"Error calculating strategy performance: {e}")
             return 0.0
@@ -477,30 +482,38 @@ class PermutationTester:
         # retraining the strategy at each step
         try:
             result = strategy_func(prices, **strategy_kwargs)
-            
-            # Extract returns
-            if hasattr(result, 'calculate_returns'):
-                if isinstance(prices, list):
-                    returns = result.calculate_returns(prices[0])
-                else:
-                    returns = result.calculate_returns(prices)
+
+            # Handle price list - use first market
+            price_series = prices[0] if isinstance(prices, list) else prices
+
+            # Extract returns based on result type
+            # Check for new Portfolio class first (has backtest method)
+            if hasattr(result, 'backtest') and callable(result.backtest):
+                # New Portfolio class - call backtest to get Result
+                backtest_result = result.backtest(price_series)
+                returns = backtest_result.returns
+            elif hasattr(result, 'calculate_returns'):
+                # Legacy component system
+                returns = result.calculate_returns(price_series)
             elif hasattr(result, 'returns'):
+                # Object with returns attribute (e.g., Result)
                 returns = result.returns
             elif isinstance(result, pl.Series):
+                # Direct return series
                 returns = result
             else:
                 raise ValueError(f"Unsupported result type: {type(result)}")
-            
+
             # Use only out-of-sample returns
             oos_returns = returns[train_window:]
-            
+
             # Calculate metric on out-of-sample data
             if metric == 'sortino_ratio':
                 return sortino_ratio(oos_returns)
             else:
                 metrics = calculate_all_metrics(oos_returns)
                 return metrics[metric]
-                
+
         except Exception as e:
             logger.warning(f"Error calculating walk-forward performance: {e}")
             return 0.0
