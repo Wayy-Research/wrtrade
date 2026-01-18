@@ -19,8 +19,8 @@ if requirements_path.exists():
 
 setup(
     name="wrtrade",
-    version="2.0.0",
-    description="Advanced Portfolio Trading Framework with N-dimensional portfolios, Kelly optimization, and multi-broker support",
+    version="2.1.0",
+    description="Ultra-fast backtesting and trading framework. Built with Polars for speed, designed for simplicity.",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Wayy Research",
