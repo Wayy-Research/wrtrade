@@ -19,7 +19,7 @@ if requirements_path.exists():
 
 setup(
     name="wrtrade",
-    version="2.1.0",
+    version="2.1.1",
     description="Ultra-fast backtesting and trading framework. Built with Polars for speed, designed for simplicity.",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -51,6 +51,7 @@ setup(
         "pyyaml>=6.0.0",
         "psutil>=5.8.0",
         "aiohttp>=3.8.0",
+        "python-dotenv>=0.19.0",
         "requests>=2.28.0",
         "pandas>=1.3.0",  # For compatibility with some broker APIs
         "wrchart>=0.1.1",  # Financial charting

@@ -69,7 +69,7 @@ from wrtrade.charts import (
     plot_backtest,
 )
 
-__version__ = "2.1.0"
+__version__ = "2.1.1"
 
 __all__ = [
     # === Core API (what most users need) ===
