@@ -141,7 +141,59 @@ result.tear_sheet()
 
 ## Deployment
 
-Create a strategy file with a `build_portfolio()` function:
+### WayyFin Paper Trading (Recommended)
+
+The easiest way to test your strategy with **real-time market data** - no broker credentials needed.
+
+```bash
+# Deploy to WayyFin paper trading
+wrtrade wayyfin deploy my_strategy.py --symbol BTC-USD
+
+# Watch it live on the leaderboard
+open http://localhost:5173  # or https://wayy.finance
+```
+
+Your strategy will:
+1. Auto-register with a randomized name (no alpha leakage)
+2. Run backtest validation
+3. Start paper trading with live Coinbase data
+4. Appear on the public leaderboard with real-time P&L
+
+```bash
+# Check strategy status
+wrtrade wayyfin status <strategy-id>
+
+# Stop paper trading
+wrtrade wayyfin stop <strategy-id>
+
+# View leaderboard
+wrtrade wayyfin leaderboard
+```
+
+**Strategy file format:**
+
+```python
+# my_strategy.py
+import polars as pl
+
+def signal(prices: pl.Series) -> pl.Series:
+    """
+    Generate trading signals from price data.
+
+    Args:
+        prices: Polars Series of prices
+
+    Returns:
+        Series with values: -1 (short), 0 (flat), 1 (long)
+    """
+    fast = prices.rolling_mean(10)
+    slow = prices.rolling_mean(30)
+    return (fast > slow).cast(int) - (fast < slow).cast(int)
+```
+
+### Broker Deployment (Live Trading)
+
+For real money trading with supported brokers:
 
 ```python
 # my_strategy.py
@@ -217,8 +269,19 @@ optimizer = KellyOptimizer(config)
 
 ## CLI Reference
 
+### WayyFin Paper Trading
+
 ```bash
-wrtrade strategy deploy <file>  # Deploy strategy
+wrtrade wayyfin deploy <file>   # Deploy to paper trading with live data
+wrtrade wayyfin status <id>     # Check strategy status
+wrtrade wayyfin stop <id>       # Stop paper trading
+wrtrade wayyfin leaderboard     # View public leaderboard
+```
+
+### Broker Trading
+
+```bash
+wrtrade strategy deploy <file>  # Deploy strategy to broker
 wrtrade strategy start <name>   # Start trading
 wrtrade strategy stop <name>    # Stop trading
 wrtrade strategy status         # Check status

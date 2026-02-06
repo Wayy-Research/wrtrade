@@ -16,10 +16,11 @@ from dotenv import load_dotenv
 
 from wrtrade.local_deploy import LocalDeployment, StrategyManager, StrategyConfig, StrategyStatus
 from wrtrade.brokers_real import BrokerFactory
+from wrtrade.wayyfin_broker import WayyFinBrokerSync, WayyFinConfig
 
 
 @click.group()
-@click.version_option(version="1.0.0", prog_name="wrtrade")
+@click.version_option(version="2.1.1", prog_name="wrtrade")
 def cli():
     """WRTrade - Advanced Portfolio Trading Framework"""
     pass
@@ -431,9 +432,9 @@ def list():
 @cli.command()
 def version():
     """Show WRTrade version and info"""
-    
+
     click.echo("WRTrade - Advanced Portfolio Trading Framework")
-    click.echo("Version: 1.0.0")
+    click.echo("Version: 2.1.1")
     click.echo("Repository: https://github.com/wayy-research/wrtrade")
     click.echo()
     click.echo("Features:")
@@ -442,6 +443,212 @@ def version():
     click.echo("  • Permutation testing")
     click.echo("  • Local deployment")
     click.echo("  • Multi-broker support")
+    click.echo("  • WayyFin paper trading integration")
+
+
+# =============================================================================
+# WAYYFIN COMMANDS - Easiest path to deployment
+# =============================================================================
+
+@cli.group()
+def wayyfin():
+    """WayyFin paper trading commands (easiest deployment)"""
+    pass
+
+
+@wayyfin.command()
+@click.argument('strategy_file', type=click.Path(exists=True))
+@click.option('--name', '-n', help='Strategy name (auto-generated if not provided)')
+@click.option('--symbol', '-s', default='BTC-USD', help='Trading symbol (default: BTC-USD)')
+@click.option('--cash', '-c', type=float, default=10000.0, help='Initial cash (default: $10,000)')
+@click.option('--no-start', is_flag=True, help='Do not start paper trading immediately')
+@click.option('--url', default='http://localhost:8000', help='WayyFin API URL')
+def deploy(strategy_file: str, name: Optional[str], symbol: str, cash: float, no_start: bool, url: str):
+    """
+    Deploy a strategy to WayyFin paper trading.
+
+    This is the EASIEST way to test a strategy with live data.
+    No broker credentials needed - just deploy and watch it trade!
+
+    Example:
+        wrtrade wayyfin deploy my_strategy.py --symbol BTC-USD
+
+    The strategy will:
+    1. Be created with an auto-generated zany name
+    2. Start paper trading with real-time market data
+    3. Appear on the public leaderboard
+    """
+    try:
+        config = WayyFinConfig(api_url=url, initial_cash=cash)
+        broker = WayyFinBrokerSync(config)
+
+        # Check connection
+        if not broker.health_check():
+            click.echo(f"❌ Cannot connect to WayyFin at {url}")
+            click.echo("   Make sure the backend is running:")
+            click.echo("   cd backend && uvicorn app_v2.main:app --reload")
+            return
+
+        click.echo(f"🚀 Deploying strategy to WayyFin...")
+        click.echo(f"   File: {strategy_file}")
+        click.echo(f"   Symbol: {symbol}")
+        click.echo(f"   Initial Cash: ${cash:,.2f}")
+
+        result = broker.deploy_strategy_file(
+            strategy_file=strategy_file,
+            name=name,
+            symbol=symbol,
+            initial_cash=cash,
+            auto_start=not no_start,
+        )
+
+        click.echo()
+        click.echo(f"✅ Strategy deployed successfully!")
+        click.echo(f"   Name: {result['name']}")
+        click.echo(f"   ID: {result['strategy_id'][:12]}...")
+        click.echo(f"   Status: {result['status'].upper()}")
+
+        if result['status'] == 'running':
+            click.echo()
+            click.echo("📊 Your strategy is now LIVE paper trading!")
+            click.echo("   View on leaderboard: http://localhost:5173")
+            click.echo(f"   Check status: wrtrade wayyfin status {result['strategy_id'][:12]}")
+        else:
+            click.echo()
+            click.echo(f"   Start trading: wrtrade wayyfin start {result['strategy_id'][:12]}")
+
+        broker.close()
+
+    except FileNotFoundError as e:
+        click.echo(f"❌ {e}")
+    except Exception as e:
+        click.echo(f"❌ Error deploying strategy: {e}")
+
+
+@wayyfin.command()
+@click.argument('strategy_id')
+@click.option('--url', default='http://localhost:8000', help='WayyFin API URL')
+def start(strategy_id: str, url: str):
+    """Start paper trading for a deployed strategy."""
+    try:
+        config = WayyFinConfig(api_url=url)
+        broker = WayyFinBrokerSync(config)
+
+        click.echo(f"🚀 Starting paper trading for {strategy_id}...")
+        result = broker.start_paper_trading(strategy_id)
+
+        click.echo(f"✅ Paper trading started!")
+        click.echo(f"   View on leaderboard: http://localhost:5173")
+
+        broker.close()
+
+    except Exception as e:
+        click.echo(f"❌ Error: {e}")
+
+
+@wayyfin.command()
+@click.argument('strategy_id')
+@click.option('--url', default='http://localhost:8000', help='WayyFin API URL')
+def stop(strategy_id: str, url: str):
+    """Stop paper trading for a strategy."""
+    try:
+        config = WayyFinConfig(api_url=url)
+        broker = WayyFinBrokerSync(config)
+
+        click.echo(f"⏹️  Stopping paper trading for {strategy_id}...")
+        result = broker.stop_paper_trading(strategy_id)
+
+        click.echo(f"✅ Paper trading stopped")
+
+        broker.close()
+
+    except Exception as e:
+        click.echo(f"❌ Error: {e}")
+
+
+@wayyfin.command()
+@click.argument('strategy_id', required=False)
+@click.option('--url', default='http://localhost:8000', help='WayyFin API URL')
+def status(strategy_id: Optional[str], url: str):
+    """Get paper trading status (or view leaderboard if no ID given)."""
+    try:
+        config = WayyFinConfig(api_url=url)
+        broker = WayyFinBrokerSync(config)
+
+        if strategy_id:
+            result = broker.get_paper_status(strategy_id)
+
+            click.echo(f"📊 Strategy Status")
+            click.echo(f"   ID: {result.get('strategy_id', strategy_id)[:12]}...")
+            click.echo(f"   Running: {'Yes' if result.get('is_running') else 'No'}")
+
+            state = result.get('state') or result.get('last_known_state', {})
+            if state:
+                equity = state.get('equity', 10000)
+                pnl = equity - 10000
+                pnl_pct = (pnl / 10000) * 100
+
+                click.echo(f"   Equity: ${equity:,.2f}")
+                click.echo(f"   P&L: ${pnl:+,.2f} ({pnl_pct:+.2f}%)")
+                click.echo(f"   Position: {state.get('position', 0):.4f}")
+                click.echo(f"   Trades: {state.get('trade_count', 0)}")
+        else:
+            # Show leaderboard
+            result = broker.get_leaderboard(limit=10)
+
+            click.echo("📊 WayyFin Strategy Leaderboard (Top 10)")
+            click.echo("=" * 60)
+
+            for entry in result.get('leaderboard', []):
+                rank = entry.get('rank', '-')
+                name = entry.get('name', 'Unknown')[:20]
+                symbol = entry.get('symbol', '-')
+                sortino = entry.get('display_sortino', 0) or 0
+                ret = entry.get('display_return', 0) or 0
+                live = "LIVE" if entry.get('is_live_trading') else ""
+
+                click.echo(f"#{rank:<3} {name:<20} {symbol:<8} Sortino: {sortino:>6.2f}  Return: {ret*100:>6.1f}%  {live}")
+
+        broker.close()
+
+    except Exception as e:
+        click.echo(f"❌ Error: {e}")
+
+
+@wayyfin.command()
+@click.option('--url', default='http://localhost:8000', help='WayyFin API URL')
+def leaderboard(url: str):
+    """View the public strategy leaderboard."""
+    try:
+        config = WayyFinConfig(api_url=url)
+        broker = WayyFinBrokerSync(config)
+
+        result = broker.get_leaderboard(limit=20)
+
+        click.echo()
+        click.echo("📊 WayyFin Strategy Leaderboard")
+        click.echo("=" * 70)
+        click.echo(f"{'#':<4} {'Name':<22} {'Symbol':<9} {'Sortino':>8} {'Return':>9} {'Status':<6}")
+        click.echo("-" * 70)
+
+        for entry in result.get('leaderboard', []):
+            rank = entry.get('rank', '-')
+            name = (entry.get('name', 'Unknown')[:20] + "..") if len(entry.get('name', '')) > 20 else entry.get('name', 'Unknown')
+            symbol = entry.get('symbol', '-')
+            sortino = entry.get('display_sortino', 0) or 0
+            ret = (entry.get('display_return', 0) or 0) * 100
+            status = "LIVE" if entry.get('is_live_trading') else entry.get('metrics_source', '-')[:6]
+
+            click.echo(f"#{rank:<3} {name:<22} {symbol:<9} {sortino:>8.2f} {ret:>8.1f}% {status:<6}")
+
+        click.echo()
+        click.echo(f"Total strategies: {result.get('total', 0)}")
+        click.echo("View in browser: http://localhost:5173")
+
+        broker.close()
+
+    except Exception as e:
+        click.echo(f"❌ Error: {e}")
 
 
 if __name__ == '__main__':
