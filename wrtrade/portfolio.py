@@ -22,6 +22,7 @@ class Result:
         print(result.max_drawdown)
         result.tear_sheet()
     """
+
     returns: pl.Series
     total_return: float
     sortino: float
@@ -90,13 +91,15 @@ class Result:
         cumulative = self.returns.cum_sum()
         n = len(self.returns)
 
-        df = pl.DataFrame({
-            'time': list(range(n)),
-            'cumulative_returns': cumulative,
-        })
+        df = pl.DataFrame(
+            {
+                "time": list(range(n)),
+                "cumulative_returns": cumulative,
+            }
+        )
 
-        chart = wrc.Chart(width=800, height=400, title='Portfolio Returns')
-        chart.add_area(df, time_col='time', value_col='cumulative_returns')
+        chart = wrc.Chart(width=800, height=400, title="Portfolio Returns")
+        chart.add_area(df, time_col="time", value_col="cumulative_returns")
 
         return chart
 
@@ -105,15 +108,17 @@ class Result:
         try:
             import matplotlib.pyplot as plt
         except ImportError:
-            raise ImportError("matplotlib required. Install with: pip install matplotlib")
+            raise ImportError(
+                "matplotlib required. Install with: pip install matplotlib"
+            )
 
         cumulative = self.returns.cum_sum().to_numpy()
 
         fig, ax = plt.subplots(figsize=(12, 6))
-        ax.plot(cumulative, label='Portfolio')
-        ax.set_ylabel('Cumulative Returns')
-        ax.set_xlabel('Time')
-        ax.set_title('Portfolio Performance')
+        ax.plot(cumulative, label="Portfolio")
+        ax.set_ylabel("Cumulative Returns")
+        ax.set_xlabel("Time")
+        ax.set_title("Portfolio Performance")
         ax.legend()
         ax.grid(True, alpha=0.3)
 
@@ -202,14 +207,13 @@ class Portfolio:
         self._last_positions = None
 
     def _parse_signals(
-        self,
-        signals: Union[SignalFunc, List, Dict]
+        self, signals: Union[SignalFunc, List, Dict]
     ) -> List[Tuple[str, SignalFunc, float]]:
         """Parse various signal formats into normalized list."""
 
         # Single function
         if callable(signals):
-            name = getattr(signals, '__name__', 'signal')
+            name = getattr(signals, "__name__", "signal")
             return [(name, signals, 1.0)]
 
         # Dictionary format
@@ -230,12 +234,12 @@ class Portfolio:
             result = []
             for i, spec in enumerate(signals):
                 if callable(spec):
-                    name = getattr(spec, '__name__', f'signal_{i}')
+                    name = getattr(spec, "__name__", f"signal_{i}")
                     result.append((name, spec, 1.0))
                 elif isinstance(spec, tuple):
                     if len(spec) == 2:
                         func, weight = spec
-                        name = getattr(func, '__name__', f'signal_{i}')
+                        name = getattr(func, "__name__", f"signal_{i}")
                         result.append((name, func, weight))
                     elif len(spec) == 3:
                         name, func, weight = spec
@@ -246,7 +250,9 @@ class Portfolio:
                     raise ValueError(f"Invalid signal spec: {spec}")
             return result
 
-        raise ValueError(f"signals must be a function, list, or dict, got {type(signals)}")
+        raise ValueError(
+            f"signals must be a function, list, or dict, got {type(signals)}"
+        )
 
     @property
     def weights(self) -> Dict[str, float]:
@@ -265,7 +271,9 @@ class Portfolio:
         self._last_positions = None
 
     def __repr__(self) -> str:
-        signals_str = ", ".join(f"{name}={weight:.2f}" for name, _, weight in self._signals)
+        signals_str = ", ".join(
+            f"{name}={weight:.2f}" for name, _, weight in self._signals
+        )
         return f"Portfolio({signals_str})"
 
     def _generate_signals(self, prices: pl.Series) -> pl.Series:
@@ -300,10 +308,7 @@ class Portfolio:
         return strategy_returns
 
     def _apply_stops(
-        self,
-        prices: pl.Series,
-        positions: pl.Series,
-        signals: pl.Series
+        self, prices: pl.Series, positions: pl.Series, signals: pl.Series
     ) -> pl.Series:
         """Apply take profit and stop loss."""
         if self.take_profit is None and self.stop_loss is None:
@@ -323,7 +328,11 @@ class Portfolio:
                 in_position = True
             elif in_position:
                 if entry_price is not None:
-                    pnl = (prices_np[i] - entry_price) / entry_price * np.sign(positions_np[i-1])
+                    pnl = (
+                        (prices_np[i] - entry_price)
+                        / entry_price
+                        * np.sign(positions_np[i - 1])
+                    )
 
                     # Check take profit
                     if self.take_profit and pnl >= self.take_profit:
@@ -391,7 +400,7 @@ class Portfolio:
         if benchmark:
             benchmark_returns = prices.pct_change().fill_null(0)
             benchmark_total = float(benchmark_returns.sum())
-            excess = metrics['total_return'] - benchmark_total
+            excess = metrics["total_return"] - benchmark_total
 
         # Attribution for multi-signal portfolios
         attribution = None
@@ -400,12 +409,12 @@ class Portfolio:
 
         return Result(
             returns=returns,
-            total_return=metrics['total_return'],
-            sortino=metrics['sortino'],
-            sharpe=metrics['sharpe'],
-            max_drawdown=metrics['max_drawdown'],
-            volatility=metrics['volatility'],
-            gain_to_pain=metrics['gain_to_pain'],
+            total_return=metrics["total_return"],
+            sortino=metrics["sortino"],
+            sharpe=metrics["sharpe"],
+            max_drawdown=metrics["max_drawdown"],
+            volatility=metrics["volatility"],
+            gain_to_pain=metrics["gain_to_pain"],
             positions=positions,
             benchmark_returns=benchmark_returns,
             benchmark_total_return=benchmark_total,
@@ -414,9 +423,7 @@ class Portfolio:
         )
 
     def _calculate_metrics(
-        self,
-        returns: pl.Series,
-        risk_free_rate: float = 0.0
+        self, returns: pl.Series, risk_free_rate: float = 0.0
     ) -> Dict[str, float]:
         """Calculate all performance metrics."""
         returns_np = returns.to_numpy()
@@ -437,7 +444,7 @@ class Portfolio:
             downside_std = np.std(downside) * np.sqrt(252)
             sortino = (np.mean(excess_returns) * 252) / downside_std
         else:
-            sortino = float('inf') if np.mean(excess_returns) > 0 else 0.0
+            sortino = float("inf") if np.mean(excess_returns) > 0 else 0.0
 
         # Sharpe ratio
         if volatility > 0:
@@ -461,15 +468,15 @@ class Portfolio:
         if losses != 0:
             gain_to_pain = float(gains / abs(losses))
         else:
-            gain_to_pain = float('inf') if gains > 0 else 0.0
+            gain_to_pain = float("inf") if gains > 0 else 0.0
 
         return {
-            'total_return': total_return,
-            'volatility': volatility,
-            'sortino': float(sortino),
-            'sharpe': float(sharpe),
-            'max_drawdown': max_drawdown,
-            'gain_to_pain': gain_to_pain,
+            "total_return": total_return,
+            "volatility": volatility,
+            "sortino": float(sortino),
+            "sharpe": float(sharpe),
+            "max_drawdown": max_drawdown,
+            "gain_to_pain": gain_to_pain,
         }
 
     def _calculate_attribution(self, prices: pl.Series) -> Dict[str, float]:
@@ -488,7 +495,7 @@ class Portfolio:
         self,
         prices: pl.Series,
         n_permutations: int = 1000,
-        metric: str = 'sortino',
+        metric: str = "sortino",
         parallel: bool = True,
         train_window: Optional[int] = None,
     ) -> float:
@@ -523,10 +530,10 @@ class Portfolio:
 
         # Map simplified metric names to internal names
         metric_map = {
-            'sortino': 'sortino_ratio',
-            'sharpe': 'sortino_ratio',  # Use sortino as proxy
-            'total_return': 'gain_to_pain_ratio',
-            'gain_to_pain': 'gain_to_pain_ratio',
+            "sortino": "sortino_ratio",
+            "sharpe": "sortino_ratio",  # Use sortino as proxy
+            "total_return": "gain_to_pain_ratio",
+            "gain_to_pain": "gain_to_pain_ratio",
         }
         internal_metric = metric_map.get(metric, metric)
 
@@ -539,16 +546,14 @@ class Portfolio:
                 prices, strategy_func, train_window, internal_metric
             )
         else:
-            results = tester.run_insample_test(
-                prices, strategy_func, internal_metric
-            )
+            results = tester.run_insample_test(prices, strategy_func, internal_metric)
 
-        return results['p_value']
+        return results["p_value"]
 
     def optimize(
         self,
         prices: pl.Series,
-        method: str = 'kelly',
+        method: str = "kelly",
         lookback_window: int = 252,
         max_leverage: float = 1.0,
         min_weight: float = 0.0,
@@ -577,13 +582,13 @@ class Portfolio:
         if len(self._signals) == 1:
             return {self._signals[0][0]: 1.0}
 
-        if method == 'equal':
+        if method == "equal":
             n = len(self._signals)
             new_weights = {name: 1.0 / n for name, _, _ in self._signals}
             self.weights = new_weights
             return new_weights
 
-        elif method == 'kelly':
+        elif method == "kelly":
             from wrtrade.kelly import KellyOptimizer, KellyConfig
 
             config = KellyConfig(
@@ -621,11 +626,8 @@ class Portfolio:
             raise ValueError(f"Unknown optimization method: {method}")
 
     def add_signal(
-        self,
-        signal: SignalFunc,
-        weight: float = 1.0,
-        name: Optional[str] = None
-    ) -> 'Portfolio':
+        self, signal: SignalFunc, weight: float = 1.0, name: Optional[str] = None
+    ) -> "Portfolio":
         """
         Add a signal to the portfolio.
 
@@ -637,12 +639,12 @@ class Portfolio:
         Returns:
             Self for method chaining
         """
-        name = name or getattr(signal, '__name__', f'signal_{len(self._signals)}')
+        name = name or getattr(signal, "__name__", f"signal_{len(self._signals)}")
         self._signals.append((name, signal, weight))
         self._last_returns = None  # Clear cache
         return self
 
-    def remove_signal(self, name: str) -> 'Portfolio':
+    def remove_signal(self, name: str) -> "Portfolio":
         """
         Remove a signal by name.
 
@@ -661,10 +663,9 @@ class Portfolio:
 # Convenience functions for one-line usage
 # =============================================================================
 
+
 def backtest(
-    signal: Union[SignalFunc, Portfolio],
-    prices: pl.Series,
-    **kwargs
+    signal: Union[SignalFunc, Portfolio], prices: pl.Series, **kwargs
 ) -> Result:
     """
     One-line backtest.
@@ -692,7 +693,7 @@ def validate(
     signal: Union[SignalFunc, Portfolio],
     prices: pl.Series,
     n_permutations: int = 1000,
-    **kwargs
+    **kwargs,
 ) -> float:
     """
     One-line statistical validation.
@@ -718,11 +719,7 @@ def validate(
         return portfolio.validate(prices, n_permutations=n_permutations, **kwargs)
 
 
-def optimize(
-    portfolio: Portfolio,
-    prices: pl.Series,
-    **kwargs
-) -> Dict[str, float]:
+def optimize(portfolio: Portfolio, prices: pl.Series, **kwargs) -> Dict[str, float]:
     """
     Optimize portfolio weights.
 

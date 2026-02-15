@@ -28,10 +28,7 @@ class TestDeployConfig:
     def test_custom_config(self):
         """Test custom configuration."""
         config = DeployConfig(
-            broker="alpaca",
-            paper=False,
-            max_position_pct=0.05,
-            validate=False
+            broker="alpaca", paper=False, max_position_pct=0.05, validate=False
         )
         assert config.broker == "alpaca"
         assert config.paper == False
@@ -40,23 +37,21 @@ class TestDeployConfig:
 
     def test_environment_credentials(self):
         """Test loading credentials from environment."""
-        os.environ['ALPACA_API_KEY'] = 'test_key'
-        os.environ['ALPACA_SECRET_KEY'] = 'test_secret'
+        os.environ["ALPACA_API_KEY"] = "test_key"
+        os.environ["ALPACA_SECRET_KEY"] = "test_secret"
 
         config = DeployConfig(broker="alpaca")
-        assert config.api_key == 'test_key'
-        assert config.secret_key == 'test_secret'
+        assert config.api_key == "test_key"
+        assert config.secret_key == "test_secret"
 
         # Cleanup
-        del os.environ['ALPACA_API_KEY']
-        del os.environ['ALPACA_SECRET_KEY']
+        del os.environ["ALPACA_API_KEY"]
+        del os.environ["ALPACA_SECRET_KEY"]
 
     def test_explicit_credentials(self):
         """Test explicit credential override."""
         config = DeployConfig(
-            broker="alpaca",
-            api_key="explicit_key",
-            secret_key="explicit_secret"
+            broker="alpaca", api_key="explicit_key", secret_key="explicit_secret"
         )
         assert config.api_key == "explicit_key"
         assert config.secret_key == "explicit_secret"
@@ -85,7 +80,9 @@ class TestValidateStrategy:
         result = validate_strategy(portfolio, sample_prices, min_sortino=10.0)
         assert result == False
 
-    def test_validate_with_composite_portfolio(self, sample_prices, ma_crossover_signal, momentum_signal):
+    def test_validate_with_composite_portfolio(
+        self, sample_prices, ma_crossover_signal, momentum_signal
+    ):
         """Test validation with composite portfolio."""
         builder = NDimensionalPortfolioBuilder()
 
@@ -111,12 +108,13 @@ class TestDeploy:
         symbols = {"MA": "AAPL"}
 
         # Mock the broker factory and broker
-        with patch('wrtrade.brokers.BrokerFactory.create_broker') as mock_factory:
+        with patch("wrtrade.brokers.BrokerFactory.create_broker") as mock_factory:
             mock_broker = AsyncMock()
             mock_broker.authenticate = AsyncMock(return_value=True)
 
             # Mock account info
             from wrtrade.brokers import AccountInfo, Position
+
             mock_account = AccountInfo(
                 account_id="test_account",
                 buying_power=10000.0,
@@ -124,7 +122,7 @@ class TestDeploy:
                 portfolio_value=10000.0,
                 day_trade_buying_power=40000.0,
                 is_day_trader=False,
-                positions=[]
+                positions=[],
             )
             mock_broker.get_account_info = AsyncMock(return_value=mock_account)
             mock_factory.return_value = mock_broker
@@ -133,7 +131,7 @@ class TestDeploy:
                 broker="alpaca",
                 paper=True,
                 api_key="test_key",
-                secret_key="test_secret"
+                secret_key="test_secret",
             )
 
             deployment_id = await deploy(portfolio, symbols, config)
@@ -148,7 +146,9 @@ class TestDeploy:
             mock_broker.get_account_info.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_deploy_authentication_failure(self, sample_prices, ma_crossover_signal):
+    async def test_deploy_authentication_failure(
+        self, sample_prices, ma_crossover_signal
+    ):
         """Test deployment fails gracefully when authentication fails."""
         builder = NDimensionalPortfolioBuilder()
         component = builder.create_signal_component("MA", ma_crossover_signal)
@@ -156,7 +156,7 @@ class TestDeploy:
 
         symbols = {"MA": "AAPL"}
 
-        with patch('wrtrade.brokers.BrokerFactory.create_broker') as mock_factory:
+        with patch("wrtrade.brokers.BrokerFactory.create_broker") as mock_factory:
             mock_broker = AsyncMock()
             mock_broker.authenticate = AsyncMock(return_value=False)
             mock_factory.return_value = mock_broker
@@ -165,7 +165,7 @@ class TestDeploy:
                 broker="alpaca",
                 paper=True,
                 api_key="test_key",
-                secret_key="test_secret"
+                secret_key="test_secret",
             )
 
             # Should raise RuntimeError when authentication fails
@@ -173,7 +173,9 @@ class TestDeploy:
                 await deploy(portfolio, symbols, config)
 
     @pytest.mark.asyncio
-    async def test_deploy_multiple_symbols(self, sample_prices, ma_crossover_signal, momentum_signal):
+    async def test_deploy_multiple_symbols(
+        self, sample_prices, ma_crossover_signal, momentum_signal
+    ):
         """Test deployment with multiple symbol mappings."""
         builder = NDimensionalPortfolioBuilder()
 
@@ -182,16 +184,14 @@ class TestDeploy:
 
         portfolio = builder.create_portfolio("Multi", [ma_comp, mom_comp])
 
-        symbols = {
-            "MA": "AAPL",
-            "Mom": "TSLA"
-        }
+        symbols = {"MA": "AAPL", "Mom": "TSLA"}
 
-        with patch('wrtrade.brokers.BrokerFactory.create_broker') as mock_factory:
+        with patch("wrtrade.brokers.BrokerFactory.create_broker") as mock_factory:
             mock_broker = AsyncMock()
             mock_broker.authenticate = AsyncMock(return_value=True)
 
             from wrtrade.brokers import AccountInfo
+
             mock_account = AccountInfo(
                 account_id="test",
                 buying_power=10000.0,
@@ -199,7 +199,7 @@ class TestDeploy:
                 portfolio_value=10000.0,
                 day_trade_buying_power=40000.0,
                 is_day_trader=False,
-                positions=[]
+                positions=[],
             )
             mock_broker.get_account_info = AsyncMock(return_value=mock_account)
             mock_factory.return_value = mock_broker
@@ -208,7 +208,7 @@ class TestDeploy:
                 broker="alpaca",
                 paper=True,
                 api_key="test_key",
-                secret_key="test_secret"
+                secret_key="test_secret",
             )
 
             deployment_id = await deploy(portfolio, symbols, config)
@@ -235,7 +235,9 @@ class TestDeployIntegration:
         # Reasonable Sortino threshold
         assert config.min_sortino >= 0.5
 
-    def test_validation_before_deploy_workflow(self, sample_prices, ma_crossover_signal):
+    def test_validation_before_deploy_workflow(
+        self, sample_prices, ma_crossover_signal
+    ):
         """Test the recommended workflow: validate then deploy."""
         builder = NDimensionalPortfolioBuilder()
         component = builder.create_signal_component("MA", ma_crossover_signal)
@@ -252,6 +254,7 @@ class TestDeployIntegration:
 
     def test_simple_api_usage(self, sample_prices):
         """Test that the API is simple and intuitive."""
+
         # Define a simple signal
         def simple_signal(prices):
             return pl.Series([1] * len(prices))

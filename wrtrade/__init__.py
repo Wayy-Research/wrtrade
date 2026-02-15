@@ -28,7 +28,6 @@ from wrtrade.portfolio import (
     # Core data types
     Portfolio,
     Result,
-
     # Convenience functions
     backtest,
     validate,
@@ -36,7 +35,11 @@ from wrtrade.portfolio import (
 )
 
 # Metrics
-from wrtrade.metrics import tear_sheet, calculate_all_metrics, calculate_all_rolling_metrics
+from wrtrade.metrics import (
+    tear_sheet,
+    calculate_all_metrics,
+    calculate_all_rolling_metrics,
+)
 
 # =============================================================================
 # Full API - for advanced usage and customization
@@ -55,7 +58,10 @@ from wrtrade.deploy import deploy, validate_strategy, DeployConfig
 from wrtrade.components import SignalComponent, CompositePortfolio
 
 # Builder (legacy - prefer Portfolio class for new code)
-from wrtrade.ndimensional_portfolio import NDimensionalPortfolioBuilder, AdvancedPortfolioManager
+from wrtrade.ndimensional_portfolio import (
+    NDimensionalPortfolioBuilder,
+    AdvancedPortfolioManager,
+)
 
 # Charts (wrchart integration)
 from wrtrade.charts import (
@@ -73,48 +79,40 @@ __version__ = "2.1.1"
 
 __all__ = [
     # === Core API (what most users need) ===
-    'Portfolio',
-    'Result',
-    'backtest',
-    'validate',
-    'optimize',
-    'tear_sheet',
-
+    "Portfolio",
+    "Result",
+    "backtest",
+    "validate",
+    "optimize",
+    "tear_sheet",
     # === Full API (advanced usage) ===
-
     # Metrics
-    'calculate_all_metrics',
-    'calculate_all_rolling_metrics',
-
+    "calculate_all_metrics",
+    "calculate_all_rolling_metrics",
     # Validation
-    'PermutationTester',
-    'PermutationConfig',
-
+    "PermutationTester",
+    "PermutationConfig",
     # Optimization
-    'KellyOptimizer',
-    'HierarchicalKellyOptimizer',
-    'KellyConfig',
-
+    "KellyOptimizer",
+    "HierarchicalKellyOptimizer",
+    "KellyConfig",
     # Deployment
-    'deploy',
-    'validate_strategy',
-    'DeployConfig',
-
+    "deploy",
+    "validate_strategy",
+    "DeployConfig",
     # Components (for hierarchical portfolios)
-    'SignalComponent',
-    'CompositePortfolio',
-
+    "SignalComponent",
+    "CompositePortfolio",
     # Builder (legacy)
-    'NDimensionalPortfolioBuilder',
-    'AdvancedPortfolioManager',
-
+    "NDimensionalPortfolioBuilder",
+    "AdvancedPortfolioManager",
     # Charts
-    'BacktestChart',
-    'price_chart',
-    'line_chart',
-    'area_chart',
-    'histogram',
-    'bar_chart',
-    'indicator_panel',
-    'plot_backtest',
+    "BacktestChart",
+    "price_chart",
+    "line_chart",
+    "area_chart",
+    "histogram",
+    "bar_chart",
+    "indicator_panel",
+    "plot_backtest",
 ]

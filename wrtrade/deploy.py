@@ -20,6 +20,7 @@ from wrtrade.brokers import BrokerAdapter, BrokerFactory
 @dataclass
 class DeployConfig:
     """Simple deployment configuration."""
+
     broker: str = "alpaca"
     paper: bool = True
     max_position_pct: float = 0.10  # 10% of portfolio
@@ -44,7 +45,7 @@ class DeployConfig:
 async def deploy(
     portfolio: CompositePortfolio,
     symbols: Dict[str, str],  # component_name -> symbol
-    config: Optional[DeployConfig] = None
+    config: Optional[DeployConfig] = None,
 ) -> str:
     """
     Deploy a portfolio to live/paper trading.
@@ -69,15 +70,10 @@ async def deploy(
         config = DeployConfig()
 
     # Create broker
-    credentials = {
-        'api_key': config.api_key,
-        'secret_key': config.secret_key
-    }
+    credentials = {"api_key": config.api_key, "secret_key": config.secret_key}
 
     broker = BrokerFactory.create_broker(
-        config.broker,
-        credentials,
-        paper_trading=config.paper
+        config.broker, credentials, paper_trading=config.paper
     )
 
     # Authenticate
@@ -92,13 +88,16 @@ async def deploy(
     # TODO: Implement actual trading loop
     # For now, just return a deployment ID
     import uuid
+
     deployment_id = str(uuid.uuid4())[:8]
 
     print(f"Portfolio deployed: {deployment_id}")
     return deployment_id
 
 
-def validate_strategy(portfolio: CompositePortfolio, prices: pl.Series, min_sortino: float = 1.0) -> bool:
+def validate_strategy(
+    portfolio: CompositePortfolio, prices: pl.Series, min_sortino: float = 1.0
+) -> bool:
     """
     Simple validation: backtest and check if Sortino ratio meets threshold.
 
@@ -115,9 +114,11 @@ def validate_strategy(portfolio: CompositePortfolio, prices: pl.Series, min_sort
     manager = AdvancedPortfolioManager(portfolio)
     results = manager.backtest(prices)
 
-    sortino = results['portfolio_metrics'].get('sortino_ratio', 0)
+    sortino = results["portfolio_metrics"].get("sortino_ratio", 0)
     passed = sortino >= min_sortino
 
-    print(f"Validation: Sortino={sortino:.2f} (required: {min_sortino:.2f}) - {'PASS' if passed else 'FAIL'}")
+    print(
+        f"Validation: Sortino={sortino:.2f} (required: {min_sortino:.2f}) - {'PASS' if passed else 'FAIL'}"
+    )
 
     return passed

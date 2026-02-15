@@ -25,6 +25,7 @@ WAYYFIN_AVAILABLE = True  # Always available - it's our own service
 @dataclass
 class WayyFinConfig:
     """Configuration for WayyFin paper trading."""
+
     api_url: str = "http://localhost:8000"
     initial_cash: float = 10000.0
     fee_rate: float = 0.001  # 0.1%
@@ -100,8 +101,7 @@ class WayyFinBroker:
             payload["description"] = description
 
         async with session.post(
-            f"{self.api_url}/api/strategy/create",
-            json=payload
+            f"{self.api_url}/api/strategy/create", json=payload
         ) as resp:
             if resp.status != 200:
                 error = await resp.text()
@@ -131,7 +131,7 @@ class WayyFinBroker:
 
         async with session.post(
             f"{self.api_url}/api/strategy/{strategy_id}/backtest",
-            json={"validate": validate, "optimize_kelly": optimize_kelly}
+            json={"validate": validate, "optimize_kelly": optimize_kelly},
         ) as resp:
             if resp.status != 200:
                 error = await resp.text()
@@ -182,8 +182,7 @@ class WayyFinBroker:
             params["initial_cash"] = initial_cash
 
         async with session.post(
-            f"{self.api_url}/api/strategy/{strategy_id}/paper/start",
-            params=params
+            f"{self.api_url}/api/strategy/{strategy_id}/paper/start", params=params
         ) as resp:
             if resp.status != 200:
                 error = await resp.text()
@@ -222,8 +221,7 @@ class WayyFinBroker:
         session = await self._get_session()
 
         async with session.get(
-            f"{self.api_url}/api/strategy/public/leaderboard",
-            params={"limit": limit}
+            f"{self.api_url}/api/strategy/public/leaderboard", params={"limit": limit}
         ) as resp:
             if resp.status != 200:
                 error = await resp.text()
@@ -241,7 +239,7 @@ class WayyFinBroker:
 
         async with session.get(
             f"{self.api_url}/api/strategy/public/equity-curves",
-            params={"hours": hours, "top_n": top_n}
+            params={"hours": hours, "top_n": top_n},
         ) as resp:
             if resp.status != 200:
                 error = await resp.text()
@@ -327,7 +325,9 @@ class WayyFinBroker:
         # Try to run backtest first
         try:
             logger.info("Running backtest...")
-            backtest_result = await self.run_backtest(strategy_id, validate=False, optimize_kelly=False)
+            backtest_result = await self.run_backtest(
+                strategy_id, validate=False, optimize_kelly=False
+            )
             result["backtest"] = backtest_result
             logger.info("Backtest complete")
         except Exception as e:

@@ -47,12 +47,14 @@ logger = logging.getLogger(__name__)
 
 class OptionType(Enum):
     """Option type."""
+
     CALL = "call"
     PUT = "put"
 
 
 class OptionSide(Enum):
     """Option position side."""
+
     BUY_TO_OPEN = "buy_to_open"
     BUY_TO_CLOSE = "buy_to_close"
     SELL_TO_OPEN = "sell_to_open"
@@ -61,6 +63,7 @@ class OptionSide(Enum):
 
 class OptionStrategy(Enum):
     """Multi-leg option strategies."""
+
     SINGLE = "single"
     COVERED_CALL = "covered_call"
     VERTICAL_SPREAD = "vertical_spread"
@@ -74,6 +77,7 @@ class OptionStrategy(Enum):
 @dataclass
 class OptionLeg:
     """Single leg of an options order."""
+
     contract_symbol: str  # OCC symbol (e.g., SPY240119C00500000)
     quantity: int
     side: OptionSide
@@ -88,6 +92,7 @@ class OptionLeg:
 @dataclass
 class OptionOrder:
     """Options order with one or more legs."""
+
     legs: List[OptionLeg]
     order_type: OrderType = OrderType.LIMIT
     time_in_force: TimeInForce = TimeInForce.DAY
@@ -116,6 +121,7 @@ class OptionOrder:
 @dataclass
 class OptionPosition:
     """Options position with Greeks."""
+
     contract_symbol: str
     underlying: str
     expiration: date
@@ -150,12 +156,15 @@ class OptionPosition:
         if self.expiration:
             self.dte = (self.expiration - date.today()).days
         if self.cost_basis == 0.0:
-            self.cost_basis = abs(self.quantity) * self.avg_price * 100  # Contract multiplier
+            self.cost_basis = (
+                abs(self.quantity) * self.avg_price * 100
+            )  # Contract multiplier
 
 
 @dataclass
 class OptionQuote:
     """Real-time option quote."""
+
     contract_symbol: str
     underlying: str
     expiration: date
@@ -213,12 +222,10 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
     DATA_URL = "https://data.alpaca.markets"
 
     # OCC symbol pattern
-    OCC_PATTERN = re.compile(r'^([A-Z]{1,6})(\d{6})([CP])(\d{8})$')
+    OCC_PATTERN = re.compile(r"^([A-Z]{1,6})(\d{6})([CP])(\d{8})$")
 
     def __init__(
-        self,
-        api_credentials: Dict[str, str],
-        config: Optional[BrokerConfig] = None
+        self, api_credentials: Dict[str, str], config: Optional[BrokerConfig] = None
     ):
         """
         Initialize Alpaca options adapter.
@@ -229,17 +236,14 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
         """
         super().__init__(api_credentials, config)
 
-        self.api_key = api_credentials.get('api_key')
-        self.secret_key = api_credentials.get('secret_key')
+        self.api_key = api_credentials.get("api_key")
+        self.secret_key = api_credentials.get("secret_key")
 
         if not self.api_key or not self.secret_key:
             raise ValueError("Alpaca API key and secret key are required")
 
         # Set base URL based on paper/live mode
-        self.base_url = (
-            self.PAPER_URL if self.config.paper_trading
-            else self.LIVE_URL
-        )
+        self.base_url = self.PAPER_URL if self.config.paper_trading else self.LIVE_URL
 
         # Authentication headers
         self.headers = {
@@ -264,7 +268,7 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             self.authenticated = True
 
             # Check options trading level
-            self.options_trading_level = account.get('options_trading_level', 0)
+            self.options_trading_level = account.get("options_trading_level", 0)
 
             logger.info(
                 f"Alpaca authentication successful. "
@@ -294,15 +298,18 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             account = response.json()
 
             return AccountInfo(
-                account_id=account.get('account_number', ''),
-                buying_power=float(account.get('options_buying_power', 0) or account.get('buying_power', 0)),
-                cash=float(account.get('cash', 0)),
-                portfolio_value=float(account.get('portfolio_value', 0)),
-                equity=float(account.get('equity', 0)),
-                day_trade_buying_power=float(account.get('daytrading_buying_power', 0)),
-                is_day_trader=account.get('pattern_day_trader', False),
-                maintenance_margin=float(account.get('maintenance_margin', 0) or 0),
-                initial_margin=float(account.get('initial_margin', 0) or 0),
+                account_id=account.get("account_number", ""),
+                buying_power=float(
+                    account.get("options_buying_power", 0)
+                    or account.get("buying_power", 0)
+                ),
+                cash=float(account.get("cash", 0)),
+                portfolio_value=float(account.get("portfolio_value", 0)),
+                equity=float(account.get("equity", 0)),
+                day_trade_buying_power=float(account.get("daytrading_buying_power", 0)),
+                is_day_trader=account.get("pattern_day_trader", False),
+                maintenance_margin=float(account.get("maintenance_margin", 0) or 0),
+                initial_margin=float(account.get("initial_margin", 0) or 0),
             )
 
         except Exception as e:
@@ -325,15 +332,17 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
 
             result = []
             for pos in positions:
-                result.append(Position(
-                    symbol=pos.get('symbol', ''),
-                    quantity=float(pos.get('qty', 0)),
-                    avg_price=float(pos.get('avg_entry_price', 0)),
-                    market_value=float(pos.get('market_value', 0)),
-                    unrealized_pnl=float(pos.get('unrealized_pl', 0)),
-                    side='long' if float(pos.get('qty', 0)) > 0 else 'short',
-                    cost_basis=float(pos.get('cost_basis', 0)),
-                ))
+                result.append(
+                    Position(
+                        symbol=pos.get("symbol", ""),
+                        quantity=float(pos.get("qty", 0)),
+                        avg_price=float(pos.get("avg_entry_price", 0)),
+                        market_value=float(pos.get("market_value", 0)),
+                        unrealized_pnl=float(pos.get("unrealized_pl", 0)),
+                        side="long" if float(pos.get("qty", 0)) > 0 else "short",
+                        cost_basis=float(pos.get("cost_basis", 0)),
+                    )
+                )
 
             return result
 
@@ -365,10 +374,10 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
 
             # First pass: identify options and collect symbols
             for pos in positions:
-                symbol = pos.get('symbol', '')
-                asset_class = pos.get('asset_class', '')
+                symbol = pos.get("symbol", "")
+                asset_class = pos.get("asset_class", "")
 
-                if asset_class == 'us_option' or self._is_option_symbol(symbol):
+                if asset_class == "us_option" or self._is_option_symbol(symbol):
                     option_symbols.append(symbol)
 
             # Fetch Greeks for all option positions
@@ -378,10 +387,10 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
 
             # Second pass: build OptionPosition objects
             for pos in positions:
-                symbol = pos.get('symbol', '')
-                asset_class = pos.get('asset_class', '')
+                symbol = pos.get("symbol", "")
+                asset_class = pos.get("asset_class", "")
 
-                if asset_class == 'us_option' or self._is_option_symbol(symbol):
+                if asset_class == "us_option" or self._is_option_symbol(symbol):
                     parsed = self._parse_occ_symbol(symbol)
                     if not parsed:
                         continue
@@ -389,25 +398,33 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
                     underlying, exp_date, opt_type, strike = parsed
                     greeks = greeks_map.get(symbol, {})
 
-                    option_positions.append(OptionPosition(
-                        contract_symbol=symbol,
-                        underlying=underlying,
-                        expiration=exp_date,
-                        option_type=OptionType.CALL if opt_type == 'C' else OptionType.PUT,
-                        strike=strike,
-                        quantity=int(float(pos.get('qty', 0))),
-                        avg_price=float(pos.get('avg_entry_price', 0)),
-                        market_value=float(pos.get('market_value', 0)),
-                        unrealized_pnl=float(pos.get('unrealized_pl', 0)),
-                        cost_basis=float(pos.get('cost_basis', 0)),
-                        last_price=float(pos.get('current_price', 0)) if pos.get('current_price') else None,
-                        delta=greeks.get('delta'),
-                        gamma=greeks.get('gamma'),
-                        theta=greeks.get('theta'),
-                        vega=greeks.get('vega'),
-                        implied_volatility=greeks.get('implied_volatility'),
-                        underlying_price=greeks.get('underlying_price'),
-                    ))
+                    option_positions.append(
+                        OptionPosition(
+                            contract_symbol=symbol,
+                            underlying=underlying,
+                            expiration=exp_date,
+                            option_type=(
+                                OptionType.CALL if opt_type == "C" else OptionType.PUT
+                            ),
+                            strike=strike,
+                            quantity=int(float(pos.get("qty", 0))),
+                            avg_price=float(pos.get("avg_entry_price", 0)),
+                            market_value=float(pos.get("market_value", 0)),
+                            unrealized_pnl=float(pos.get("unrealized_pl", 0)),
+                            cost_basis=float(pos.get("cost_basis", 0)),
+                            last_price=(
+                                float(pos.get("current_price", 0))
+                                if pos.get("current_price")
+                                else None
+                            ),
+                            delta=greeks.get("delta"),
+                            gamma=greeks.get("gamma"),
+                            theta=greeks.get("theta"),
+                            vega=greeks.get("vega"),
+                            implied_volatility=greeks.get("implied_volatility"),
+                            underlying_price=greeks.get("underlying_price"),
+                        )
+                    )
 
             return option_positions
 
@@ -457,11 +474,15 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             response.raise_for_status()
 
             result = response.json()
-            order.order_id = result.get('id')
-            order.status = OrderStatus(result.get('status', 'pending').lower())
-            order.created_at = datetime.fromisoformat(
-                result.get('created_at', '').replace('Z', '+00:00')
-            ) if result.get('created_at') else datetime.now()
+            order.order_id = result.get("id")
+            order.status = OrderStatus(result.get("status", "pending").lower())
+            order.created_at = (
+                datetime.fromisoformat(
+                    result.get("created_at", "").replace("Z", "+00:00")
+                )
+                if result.get("created_at")
+                else datetime.now()
+            )
 
             logger.info(f"Order placed: {order.order_id}")
             return True
@@ -501,7 +522,10 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             return False
 
         # Validate stop price for stop orders
-        if order.order_type in [OrderType.STOP, OrderType.STOP_LIMIT] and order.stop_price is None:
+        if (
+            order.order_type in [OrderType.STOP, OrderType.STOP_LIMIT]
+            and order.stop_price is None
+        ):
             logger.error("Stop price required for stop orders")
             order.status = OrderStatus.REJECTED
             return False
@@ -513,7 +537,9 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             if parsed:
                 _, exp_date, _, _ = parsed
                 if exp_date < today:
-                    logger.error(f"Contract {leg.contract_symbol} expired on {exp_date}")
+                    logger.error(
+                        f"Contract {leg.contract_symbol} expired on {exp_date}"
+                    )
                     order.status = OrderStatus.REJECTED
                     return False
 
@@ -535,11 +561,15 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             response.raise_for_status()
 
             result = response.json()
-            order.order_id = result.get('id')
-            order.status = OrderStatus(result.get('status', 'pending').lower())
-            order.created_at = datetime.fromisoformat(
-                result.get('created_at', '').replace('Z', '+00:00')
-            ) if result.get('created_at') else datetime.now()
+            order.order_id = result.get("id")
+            order.status = OrderStatus(result.get("status", "pending").lower())
+            order.created_at = (
+                datetime.fromisoformat(
+                    result.get("created_at", "").replace("Z", "+00:00")
+                )
+                if result.get("created_at")
+                else datetime.now()
+            )
 
             logger.info(f"Option order placed: {order.order_id}")
             return True
@@ -606,19 +636,25 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             else:
                 side = "sell"
 
-            legs.append({
-                "symbol": leg.contract_symbol,
-                "qty": str(leg.quantity),
-                "side": side,
-            })
+            legs.append(
+                {
+                    "symbol": leg.contract_symbol,
+                    "qty": str(leg.quantity),
+                    "side": side,
+                }
+            )
 
         # Validate all legs have same underlying
         if len(underlyings) > 1:
-            raise ValueError(f"Multi-leg orders must have same underlying. Found: {underlyings}")
+            raise ValueError(
+                f"Multi-leg orders must have same underlying. Found: {underlyings}"
+            )
 
         # Validate same expiration for most strategies (except calendar spreads)
         if order.strategy != OptionStrategy.CALENDAR_SPREAD and len(expirations) > 1:
-            raise ValueError(f"Strategy {order.strategy.value} requires same expiration. Found: {expirations}")
+            raise ValueError(
+                f"Strategy {order.strategy.value} requires same expiration. Found: {expirations}"
+            )
 
         payload = {
             "order_class": "mleg",  # Multi-leg order class
@@ -667,21 +703,25 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             data = response.json()
 
             order = Order(
-                symbol=data.get('symbol', ''),
-                quantity=float(data.get('qty', 0)),
-                side=data.get('side', ''),
-                order_type=OrderType(data.get('type', 'market')),
-                time_in_force=TimeInForce(data.get('time_in_force', 'day')),
-                order_id=data.get('id'),
-                status=OrderStatus(data.get('status', 'pending').lower()),
-                filled_quantity=float(data.get('filled_qty', 0) or 0),
-                avg_fill_price=float(data.get('filled_avg_price')) if data.get('filled_avg_price') else None,
+                symbol=data.get("symbol", ""),
+                quantity=float(data.get("qty", 0)),
+                side=data.get("side", ""),
+                order_type=OrderType(data.get("type", "market")),
+                time_in_force=TimeInForce(data.get("time_in_force", "day")),
+                order_id=data.get("id"),
+                status=OrderStatus(data.get("status", "pending").lower()),
+                filled_quantity=float(data.get("filled_qty", 0) or 0),
+                avg_fill_price=(
+                    float(data.get("filled_avg_price"))
+                    if data.get("filled_avg_price")
+                    else None
+                ),
             )
 
-            if data.get('limit_price'):
-                order.limit_price = float(data.get('limit_price'))
-            if data.get('stop_price'):
-                order.stop_price = float(data.get('stop_price'))
+            if data.get("limit_price"):
+                order.limit_price = float(data.get("limit_price"))
+            if data.get("stop_price"):
+                order.stop_price = float(data.get("stop_price"))
 
             return order
 
@@ -690,9 +730,7 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             return None
 
     async def get_orders(
-        self,
-        symbol: Optional[str] = None,
-        limit: int = 100
+        self, symbol: Optional[str] = None, limit: int = 100
     ) -> List[Order]:
         """Get order history."""
         if not self.authenticated:
@@ -721,21 +759,25 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             result = []
             for data in orders_data:
                 order = Order(
-                    symbol=data.get('symbol', ''),
-                    quantity=float(data.get('qty', 0)),
-                    side=data.get('side', ''),
-                    order_type=OrderType(data.get('type', 'market')),
-                    time_in_force=TimeInForce(data.get('time_in_force', 'day')),
-                    order_id=data.get('id'),
-                    status=OrderStatus(data.get('status', 'pending').lower()),
-                    filled_quantity=float(data.get('filled_qty', 0) or 0),
-                    avg_fill_price=float(data.get('filled_avg_price')) if data.get('filled_avg_price') else None,
+                    symbol=data.get("symbol", ""),
+                    quantity=float(data.get("qty", 0)),
+                    side=data.get("side", ""),
+                    order_type=OrderType(data.get("type", "market")),
+                    time_in_force=TimeInForce(data.get("time_in_force", "day")),
+                    order_id=data.get("id"),
+                    status=OrderStatus(data.get("status", "pending").lower()),
+                    filled_quantity=float(data.get("filled_qty", 0) or 0),
+                    avg_fill_price=(
+                        float(data.get("filled_avg_price"))
+                        if data.get("filled_avg_price")
+                        else None
+                    ),
                 )
 
-                if data.get('limit_price'):
-                    order.limit_price = float(data.get('limit_price'))
-                if data.get('stop_price'):
-                    order.stop_price = float(data.get('stop_price'))
+                if data.get("limit_price"):
+                    order.limit_price = float(data.get("limit_price"))
+                if data.get("stop_price"):
+                    order.stop_price = float(data.get("stop_price"))
 
                 result.append(order)
 
@@ -746,8 +788,7 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             return []
 
     async def get_market_data(
-        self,
-        symbols: Union[str, List[str]]
+        self, symbols: Union[str, List[str]]
     ) -> Dict[str, MarketData]:
         """Get real-time market data for equities."""
         if not self.authenticated:
@@ -768,7 +809,7 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             response.raise_for_status()
 
             data = response.json()
-            quotes = data.get('quotes', {})
+            quotes = data.get("quotes", {})
 
             result = {}
             for symbol in symbols:
@@ -776,14 +817,18 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
                     q = quotes[symbol]
                     result[symbol] = MarketData(
                         symbol=symbol,
-                        price=(q.get('bp', 0) + q.get('ap', 0)) / 2,
-                        bid=q.get('bp'),
-                        ask=q.get('ap'),
-                        bid_size=q.get('bs'),
-                        ask_size=q.get('as'),
-                        timestamp=datetime.fromisoformat(
-                            q.get('t', '').replace('Z', '+00:00')
-                        ) if q.get('t') else datetime.now(),
+                        price=(q.get("bp", 0) + q.get("ap", 0)) / 2,
+                        bid=q.get("bp"),
+                        ask=q.get("ap"),
+                        bid_size=q.get("bs"),
+                        ask_size=q.get("as"),
+                        timestamp=(
+                            datetime.fromisoformat(
+                                q.get("t", "").replace("Z", "+00:00")
+                            )
+                            if q.get("t")
+                            else datetime.now()
+                        ),
                     )
 
             return result
@@ -793,8 +838,7 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             return {}
 
     async def get_option_quotes(
-        self,
-        symbols: Union[str, List[str]]
+        self, symbols: Union[str, List[str]]
     ) -> Dict[str, OptionQuote]:
         """
         Get real-time quotes for option contracts.
@@ -824,7 +868,7 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             response.raise_for_status()
 
             data = response.json()
-            quotes = data.get('quotes', {})
+            quotes = data.get("quotes", {})
 
             # Also get snapshots for Greeks
             greeks_map = await self._fetch_option_greeks(symbols)
@@ -843,19 +887,23 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
                             contract_symbol=symbol,
                             underlying=underlying,
                             expiration=exp_date,
-                            option_type='call' if opt_type == 'C' else 'put',
+                            option_type="call" if opt_type == "C" else "put",
                             strike=strike,
-                            bid=float(q.get('bp', 0)),
-                            ask=float(q.get('ap', 0)),
-                            delta=greeks.get('delta'),
-                            gamma=greeks.get('gamma'),
-                            theta=greeks.get('theta'),
-                            vega=greeks.get('vega'),
-                            implied_volatility=greeks.get('implied_volatility'),
-                            underlying_price=greeks.get('underlying_price'),
-                            timestamp=datetime.fromisoformat(
-                                q.get('t', '').replace('Z', '+00:00')
-                            ) if q.get('t') else datetime.now(),
+                            bid=float(q.get("bp", 0)),
+                            ask=float(q.get("ap", 0)),
+                            delta=greeks.get("delta"),
+                            gamma=greeks.get("gamma"),
+                            theta=greeks.get("theta"),
+                            vega=greeks.get("vega"),
+                            implied_volatility=greeks.get("implied_volatility"),
+                            underlying_price=greeks.get("underlying_price"),
+                            timestamp=(
+                                datetime.fromisoformat(
+                                    q.get("t", "").replace("Z", "+00:00")
+                                )
+                                if q.get("t")
+                                else datetime.now()
+                            ),
                         )
 
             return result
@@ -869,7 +917,7 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
         symbol: str,
         start_date: datetime,
         end_date: datetime,
-        timeframe: str = '1Day'
+        timeframe: str = "1Day",
     ) -> pl.DataFrame:
         """Get historical data for equity."""
         if not self.authenticated:
@@ -881,8 +929,8 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             url = f"{self.DATA_URL}/v2/stocks/{symbol}/bars"
 
             params = {
-                "start": start_date.isoformat() + 'Z',
-                "end": end_date.isoformat() + 'Z',
+                "start": start_date.isoformat() + "Z",
+                "end": end_date.isoformat() + "Z",
                 "timeframe": timeframe,
                 "limit": 10000,
             }
@@ -893,22 +941,24 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             response.raise_for_status()
 
             data = response.json()
-            bars = data.get('bars', [])
+            bars = data.get("bars", [])
 
             if not bars:
                 return pl.DataFrame()
 
             records = []
             for bar in bars:
-                records.append({
-                    'timestamp': bar.get('t'),
-                    'open': float(bar.get('o', 0)),
-                    'high': float(bar.get('h', 0)),
-                    'low': float(bar.get('l', 0)),
-                    'close': float(bar.get('c', 0)),
-                    'volume': int(bar.get('v', 0)),
-                    'vwap': float(bar.get('vw', 0)),
-                })
+                records.append(
+                    {
+                        "timestamp": bar.get("t"),
+                        "open": float(bar.get("o", 0)),
+                        "high": float(bar.get("h", 0)),
+                        "low": float(bar.get("l", 0)),
+                        "close": float(bar.get("c", 0)),
+                        "volume": int(bar.get("v", 0)),
+                        "vwap": float(bar.get("vw", 0)),
+                    }
+                )
 
             return pl.DataFrame(records)
 
@@ -947,8 +997,7 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
             return False
 
     async def _fetch_option_greeks(
-        self,
-        symbols: List[str]
+        self, symbols: List[str]
     ) -> Dict[str, Dict[str, Any]]:
         """Fetch Greeks for option symbols from snapshot endpoint."""
         if not symbols:
@@ -974,18 +1023,18 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
 
                 if response.status_code == 200:
                     data = response.json()
-                    snapshots = data.get('snapshots', {})
+                    snapshots = data.get("snapshots", {})
 
                     for contract, snapshot in snapshots.items():
                         if contract in symbols:
-                            greeks = snapshot.get('greeks', {})
+                            greeks = snapshot.get("greeks", {})
                             greeks_map[contract] = {
-                                'delta': greeks.get('delta'),
-                                'gamma': greeks.get('gamma'),
-                                'theta': greeks.get('theta'),
-                                'vega': greeks.get('vega'),
-                                'implied_volatility': snapshot.get('impliedVolatility'),
-                                'underlying_price': snapshot.get('underlyingPrice'),
+                                "delta": greeks.get("delta"),
+                                "gamma": greeks.get("gamma"),
+                                "theta": greeks.get("theta"),
+                                "vega": greeks.get("vega"),
+                                "implied_volatility": snapshot.get("impliedVolatility"),
+                                "underlying_price": snapshot.get("underlyingPrice"),
                             }
 
             return greeks_map
@@ -1012,7 +1061,7 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
         underlying, date_str, opt_type, strike_str = match.groups()
 
         try:
-            exp_date = datetime.strptime(date_str, '%y%m%d').date()
+            exp_date = datetime.strptime(date_str, "%y%m%d").date()
             strike = float(strike_str) / 1000.0
             return (underlying, exp_date, opt_type, strike)
         except ValueError:
@@ -1020,10 +1069,7 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
 
     @staticmethod
     def build_occ_symbol(
-        underlying: str,
-        expiration: date,
-        option_type: str,
-        strike: float
+        underlying: str, expiration: date, option_type: str, strike: float
     ) -> str:
         """
         Build OCC option symbol from components.
@@ -1037,8 +1083,8 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
         Returns:
             OCC symbol string
         """
-        date_str = expiration.strftime('%y%m%d')
-        opt_char = 'C' if option_type.lower() == 'call' else 'P'
+        date_str = expiration.strftime("%y%m%d")
+        opt_char = "C" if option_type.lower() == "call" else "P"
         strike_int = int(strike * 1000)
         return f"{underlying.upper()}{date_str}{opt_char}{strike_int:08d}"
 
@@ -1051,7 +1097,7 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
         option_type: str,
         long_strike: float,
         short_strike: float,
-        quantity: int = 1
+        quantity: int = 1,
     ) -> OptionOrder:
         """
         Build a vertical spread order.
@@ -1067,8 +1113,12 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
         Returns:
             OptionOrder with two legs
         """
-        long_symbol = self.build_occ_symbol(underlying, expiration, option_type, long_strike)
-        short_symbol = self.build_occ_symbol(underlying, expiration, option_type, short_strike)
+        long_symbol = self.build_occ_symbol(
+            underlying, expiration, option_type, long_strike
+        )
+        short_symbol = self.build_occ_symbol(
+            underlying, expiration, option_type, short_strike
+        )
 
         return OptionOrder(
             legs=[
@@ -1092,7 +1142,7 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
         expiration: date,
         strike: float,
         quantity: int = 1,
-        side: str = "buy"
+        side: str = "buy",
     ) -> OptionOrder:
         """
         Build a straddle order (same strike call + put).
@@ -1138,7 +1188,7 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
         call_strike: float,
         put_strike: float,
         quantity: int = 1,
-        side: str = "buy"
+        side: str = "buy",
     ) -> OptionOrder:
         """
         Build a strangle order (different strike call + put).
@@ -1186,7 +1236,7 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
         put_short_strike: float,
         call_short_strike: float,
         call_long_strike: float,
-        quantity: int = 1
+        quantity: int = 1,
     ) -> OptionOrder:
         """
         Build an iron condor order.
@@ -1206,22 +1256,30 @@ class AlpacaOptionsBrokerAdapter(BrokerAdapter):
         return OptionOrder(
             legs=[
                 OptionLeg(
-                    contract_symbol=self.build_occ_symbol(underlying, expiration, "put", put_long_strike),
+                    contract_symbol=self.build_occ_symbol(
+                        underlying, expiration, "put", put_long_strike
+                    ),
                     quantity=quantity,
                     side=OptionSide.BUY_TO_OPEN,
                 ),
                 OptionLeg(
-                    contract_symbol=self.build_occ_symbol(underlying, expiration, "put", put_short_strike),
+                    contract_symbol=self.build_occ_symbol(
+                        underlying, expiration, "put", put_short_strike
+                    ),
                     quantity=quantity,
                     side=OptionSide.SELL_TO_OPEN,
                 ),
                 OptionLeg(
-                    contract_symbol=self.build_occ_symbol(underlying, expiration, "call", call_short_strike),
+                    contract_symbol=self.build_occ_symbol(
+                        underlying, expiration, "call", call_short_strike
+                    ),
                     quantity=quantity,
                     side=OptionSide.SELL_TO_OPEN,
                 ),
                 OptionLeg(
-                    contract_symbol=self.build_occ_symbol(underlying, expiration, "call", call_long_strike),
+                    contract_symbol=self.build_occ_symbol(
+                        underlying, expiration, "call", call_long_strike
+                    ),
                     quantity=quantity,
                     side=OptionSide.BUY_TO_OPEN,
                 ),

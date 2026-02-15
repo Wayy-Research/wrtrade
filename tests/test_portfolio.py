@@ -14,6 +14,7 @@ from wrtrade.portfolio import Portfolio, Result, backtest, validate, optimize
 # Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def sample_prices():
     """Generate sample price data."""
@@ -56,6 +57,7 @@ def momentum(prices: pl.Series) -> pl.Series:
 # Portfolio Construction Tests
 # =============================================================================
 
+
 class TestPortfolioConstruction:
     """Test Portfolio construction with various input formats."""
 
@@ -63,51 +65,59 @@ class TestPortfolioConstruction:
         """Portfolio accepts a single signal function."""
         portfolio = Portfolio(ma_crossover)
         assert len(portfolio._signals) == 1
-        assert portfolio._signals[0][0] == 'ma_crossover'  # name inferred
+        assert portfolio._signals[0][0] == "ma_crossover"  # name inferred
         assert portfolio._signals[0][2] == 1.0  # default weight
 
     def test_list_of_tuples(self, sample_prices):
         """Portfolio accepts list of (func, weight) tuples."""
-        portfolio = Portfolio([
-            (ma_crossover, 0.6),
-            (momentum, 0.4),
-        ])
+        portfolio = Portfolio(
+            [
+                (ma_crossover, 0.6),
+                (momentum, 0.4),
+            ]
+        )
         assert len(portfolio._signals) == 2
-        assert portfolio.weights == {'ma_crossover': 0.6, 'momentum': 0.4}
+        assert portfolio.weights == {"ma_crossover": 0.6, "momentum": 0.4}
 
     def test_list_of_named_tuples(self, sample_prices):
         """Portfolio accepts list of (name, func, weight) tuples."""
-        portfolio = Portfolio([
-            ('trend', ma_crossover, 0.6),
-            ('mom', momentum, 0.4),
-        ])
+        portfolio = Portfolio(
+            [
+                ("trend", ma_crossover, 0.6),
+                ("mom", momentum, 0.4),
+            ]
+        )
         assert len(portfolio._signals) == 2
-        assert portfolio.weights == {'trend': 0.6, 'mom': 0.4}
+        assert portfolio.weights == {"trend": 0.6, "mom": 0.4}
 
     def test_dict_format(self, sample_prices):
         """Portfolio accepts dict format."""
-        portfolio = Portfolio({
-            'trend': (ma_crossover, 0.6),
-            'mom': (momentum, 0.4),
-        })
+        portfolio = Portfolio(
+            {
+                "trend": (ma_crossover, 0.6),
+                "mom": (momentum, 0.4),
+            }
+        )
         assert len(portfolio._signals) == 2
-        assert portfolio.weights == {'trend': 0.6, 'mom': 0.4}
+        assert portfolio.weights == {"trend": 0.6, "mom": 0.4}
 
     def test_dict_with_just_functions(self, sample_prices):
         """Portfolio accepts dict with functions (default weight)."""
-        portfolio = Portfolio({
-            'trend': ma_crossover,
-            'mom': momentum,
-        })
-        assert portfolio.weights == {'trend': 1.0, 'mom': 1.0}
+        portfolio = Portfolio(
+            {
+                "trend": ma_crossover,
+                "mom": momentum,
+            }
+        )
+        assert portfolio.weights == {"trend": 1.0, "mom": 1.0}
 
     def test_list_of_functions(self, sample_prices):
         """Portfolio accepts list of just functions."""
         portfolio = Portfolio([ma_crossover, momentum])
         assert len(portfolio._signals) == 2
         # Names inferred from function names
-        assert 'ma_crossover' in portfolio.weights
-        assert 'momentum' in portfolio.weights
+        assert "ma_crossover" in portfolio.weights
+        assert "momentum" in portfolio.weights
 
     def test_custom_name(self, sample_prices):
         """Portfolio accepts custom name."""
@@ -121,29 +131,28 @@ class TestPortfolioConstruction:
 
     def test_stop_loss_take_profit(self, sample_prices):
         """Portfolio accepts stop loss and take profit."""
-        portfolio = Portfolio(
-            ma_crossover,
-            take_profit=0.05,
-            stop_loss=0.02
-        )
+        portfolio = Portfolio(ma_crossover, take_profit=0.05, stop_loss=0.02)
         assert portfolio.take_profit == 0.05
         assert portfolio.stop_loss == 0.02
 
     def test_repr(self, sample_prices):
         """Portfolio has readable repr."""
-        portfolio = Portfolio([
-            (ma_crossover, 0.6),
-            (momentum, 0.4),
-        ])
+        portfolio = Portfolio(
+            [
+                (ma_crossover, 0.6),
+                (momentum, 0.4),
+            ]
+        )
         repr_str = repr(portfolio)
-        assert 'Portfolio' in repr_str
-        assert '0.60' in repr_str
-        assert '0.40' in repr_str
+        assert "Portfolio" in repr_str
+        assert "0.60" in repr_str
+        assert "0.40" in repr_str
 
 
 # =============================================================================
 # Backtest Tests
 # =============================================================================
+
 
 class TestPortfolioBacktest:
     """Test Portfolio.backtest() method."""
@@ -159,14 +168,14 @@ class TestPortfolioBacktest:
         portfolio = Portfolio(ma_crossover)
         result = portfolio.backtest(sample_prices)
 
-        assert hasattr(result, 'total_return')
-        assert hasattr(result, 'sortino')
-        assert hasattr(result, 'sharpe')
-        assert hasattr(result, 'max_drawdown')
-        assert hasattr(result, 'volatility')
-        assert hasattr(result, 'gain_to_pain')
-        assert hasattr(result, 'returns')
-        assert hasattr(result, 'positions')
+        assert hasattr(result, "total_return")
+        assert hasattr(result, "sortino")
+        assert hasattr(result, "sharpe")
+        assert hasattr(result, "max_drawdown")
+        assert hasattr(result, "volatility")
+        assert hasattr(result, "gain_to_pain")
+        assert hasattr(result, "returns")
+        assert hasattr(result, "positions")
 
     def test_result_returns_series(self, sample_prices):
         """Result contains returns as Polars Series."""
@@ -194,15 +203,17 @@ class TestPortfolioBacktest:
 
     def test_attribution_multi_signal(self, sample_prices):
         """Multi-signal portfolio has attribution."""
-        portfolio = Portfolio([
-            (ma_crossover, 0.6),
-            (momentum, 0.4),
-        ])
+        portfolio = Portfolio(
+            [
+                (ma_crossover, 0.6),
+                (momentum, 0.4),
+            ]
+        )
         result = portfolio.backtest(sample_prices)
 
         assert result.attribution is not None
-        assert 'ma_crossover' in result.attribution
-        assert 'momentum' in result.attribution
+        assert "ma_crossover" in result.attribution
+        assert "momentum" in result.attribution
 
     def test_attribution_single_signal(self, sample_prices):
         """Single signal portfolio has no attribution."""
@@ -232,6 +243,7 @@ class TestPortfolioBacktest:
 # Result Tests
 # =============================================================================
 
+
 class TestResult:
     """Test Result dataclass."""
 
@@ -242,14 +254,15 @@ class TestResult:
         result.tear_sheet()
 
         captured = capsys.readouterr()
-        assert 'PERFORMANCE REPORT' in captured.out
-        assert 'Total Return' in captured.out
-        assert 'Sortino' in captured.out
+        assert "PERFORMANCE REPORT" in captured.out
+        assert "Total Return" in captured.out
+        assert "Sortino" in captured.out
 
 
 # =============================================================================
 # Convenience Function Tests
 # =============================================================================
+
 
 class TestConvenienceFunctions:
     """Test top-level convenience functions."""
@@ -270,50 +283,58 @@ class TestConvenienceFunctions:
 # Weight Management Tests
 # =============================================================================
 
+
 class TestWeightManagement:
     """Test weight getting and setting."""
 
     def test_get_weights(self, sample_prices):
         """weights property returns dict."""
-        portfolio = Portfolio([
-            (ma_crossover, 0.6),
-            (momentum, 0.4),
-        ])
+        portfolio = Portfolio(
+            [
+                (ma_crossover, 0.6),
+                (momentum, 0.4),
+            ]
+        )
         weights = portfolio.weights
-        assert weights == {'ma_crossover': 0.6, 'momentum': 0.4}
+        assert weights == {"ma_crossover": 0.6, "momentum": 0.4}
 
     def test_set_weights(self, sample_prices):
         """weights can be set."""
-        portfolio = Portfolio([
-            (ma_crossover, 0.5),
-            (momentum, 0.5),
-        ])
-        portfolio.weights = {'ma_crossover': 0.7, 'momentum': 0.3}
-        assert portfolio.weights == {'ma_crossover': 0.7, 'momentum': 0.3}
+        portfolio = Portfolio(
+            [
+                (ma_crossover, 0.5),
+                (momentum, 0.5),
+            ]
+        )
+        portfolio.weights = {"ma_crossover": 0.7, "momentum": 0.3}
+        assert portfolio.weights == {"ma_crossover": 0.7, "momentum": 0.3}
 
     def test_add_signal(self, sample_prices):
         """Signals can be added."""
         portfolio = Portfolio(ma_crossover)
-        portfolio.add_signal(momentum, weight=0.5, name='mom')
+        portfolio.add_signal(momentum, weight=0.5, name="mom")
 
         assert len(portfolio._signals) == 2
-        assert 'mom' in portfolio.weights
+        assert "mom" in portfolio.weights
 
     def test_remove_signal(self, sample_prices):
         """Signals can be removed."""
-        portfolio = Portfolio([
-            (ma_crossover, 0.6),
-            (momentum, 0.4),
-        ])
-        portfolio.remove_signal('momentum')
+        portfolio = Portfolio(
+            [
+                (ma_crossover, 0.6),
+                (momentum, 0.4),
+            ]
+        )
+        portfolio.remove_signal("momentum")
 
         assert len(portfolio._signals) == 1
-        assert 'momentum' not in portfolio.weights
+        assert "momentum" not in portfolio.weights
 
 
 # =============================================================================
 # Edge Cases
 # =============================================================================
+
 
 class TestEdgeCases:
     """Test edge cases and error handling."""
@@ -343,16 +364,20 @@ class TestEdgeCases:
 # Integration Tests
 # =============================================================================
 
+
 class TestIntegration:
     """Integration tests for full workflow."""
 
     def test_full_workflow(self, sample_prices):
         """Test complete workflow: create, backtest, analyze."""
         # Create portfolio
-        portfolio = Portfolio([
-            (ma_crossover, 0.6),
-            (momentum, 0.4),
-        ], name="Multi_Strategy")
+        portfolio = Portfolio(
+            [
+                (ma_crossover, 0.6),
+                (momentum, 0.4),
+            ],
+            name="Multi_Strategy",
+        )
 
         # Backtest
         result = portfolio.backtest(sample_prices)
@@ -370,13 +395,15 @@ class TestIntegration:
 
     def test_optimize_updates_weights(self, sample_prices):
         """optimize() updates portfolio weights."""
-        portfolio = Portfolio([
-            (ma_crossover, 0.5),
-            (momentum, 0.5),
-        ])
+        portfolio = Portfolio(
+            [
+                (ma_crossover, 0.5),
+                (momentum, 0.5),
+            ]
+        )
 
         original_weights = portfolio.weights.copy()
-        portfolio.optimize(sample_prices, method='kelly')
+        portfolio.optimize(sample_prices, method="kelly")
 
         # Weights should change (unless data is pathological)
         # At minimum, the method should run without error

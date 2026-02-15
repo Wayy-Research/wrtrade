@@ -19,9 +19,9 @@ from typing import Optional, Union, List, Dict, Any, Tuple
 
 def _to_numpy(data) -> np.ndarray:
     """Convert various data types to numpy array."""
-    if hasattr(data, 'to_numpy'):
+    if hasattr(data, "to_numpy"):
         return data.to_numpy()
-    elif hasattr(data, 'values'):
+    elif hasattr(data, "values"):
         return data.values
     elif isinstance(data, list):
         return np.array(data)
@@ -38,7 +38,7 @@ def _to_timestamps(timestamps) -> list:
 
     # Convert datetime64 to Unix seconds
     if np.issubdtype(ts.dtype, np.datetime64):
-        return [int(t.astype('datetime64[s]').astype(int)) for t in ts]
+        return [int(t.astype("datetime64[s]").astype(int)) for t in ts]
 
     # Try datetime objects
     try:
@@ -51,6 +51,7 @@ def _get_wrchart():
     """Import wrchart."""
     try:
         import wrchart as wrc
+
         return wrc
     except ImportError:
         raise ImportError("wrchart required: pip install wrchart")
@@ -58,19 +59,20 @@ def _get_wrchart():
 
 # Wayy brand colors (with semantic meanings)
 COLORS = {
-    "primary": "#000000",      # Black - main line color (prices, indicators)
-    "secondary": "#888888",    # Gray 400 - secondary/benchmark lines
-    "accent": "#E53935",       # Red - accent/drawdown/negative
-    "grid": "#e0e0e0",         # Gray 200 - grid/reference lines
-    "equity": "#22863a",       # Green - equity curves (positive performance)
-    "positive": "#22863a",     # Green - positive values
-    "negative": "#E53935",     # Red - negative values
+    "primary": "#000000",  # Black - main line color (prices, indicators)
+    "secondary": "#888888",  # Gray 400 - secondary/benchmark lines
+    "accent": "#E53935",  # Red - accent/drawdown/negative
+    "grid": "#e0e0e0",  # Gray 200 - grid/reference lines
+    "equity": "#22863a",  # Green - equity curves (positive performance)
+    "positive": "#22863a",  # Green - positive values
+    "negative": "#E53935",  # Red - negative values
 }
 
 
 # =============================================================================
 # Price and Line Charts
 # =============================================================================
+
 
 def price_chart(
     prices,
@@ -114,8 +116,12 @@ def price_chart(
         for i, (name, values) in enumerate(overlays.items()):
             overlay_arr = _to_numpy(values)
             df_overlay = pl.DataFrame({"time": ts, name: overlay_arr})
-            chart.add_line(df_overlay, time_col="time", value_col=name,
-                          color=overlay_colors[i % len(overlay_colors)])
+            chart.add_line(
+                df_overlay,
+                time_col="time",
+                value_col=name,
+                color=overlay_colors[i % len(overlay_colors)],
+            )
 
     return chart
 
@@ -153,7 +159,9 @@ def line_chart(
     df = pl.DataFrame({"time": ts, "value": values_arr})
 
     chart = wrc.Chart(width=width, height=height, theme=wrc.WayyTheme, title=title)
-    chart.add_line(df, time_col="time", value_col="value", color=color or COLORS["primary"])
+    chart.add_line(
+        df, time_col="time", value_col="value", color=color or COLORS["primary"]
+    )
 
     if h_lines:
         for val, col in h_lines:
@@ -194,10 +202,14 @@ def area_chart(
     line_color = color or COLORS["primary"]
 
     chart = wrc.Chart(width=width, height=height, theme=wrc.WayyTheme, title=title)
-    chart.add_area(df, time_col="time", value_col="value",
-                   line_color=line_color,
-                   top_color=f"{line_color}11",
-                   bottom_color=f"{line_color}44")
+    chart.add_area(
+        df,
+        time_col="time",
+        value_col="value",
+        line_color=line_color,
+        top_color=f"{line_color}11",
+        bottom_color=f"{line_color}44",
+    )
 
     return chart
 
@@ -205,6 +217,7 @@ def area_chart(
 # =============================================================================
 # Histogram Charts
 # =============================================================================
+
 
 def histogram(
     values,
@@ -239,13 +252,14 @@ def histogram(
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
 
     # Create dataframe with bin indices as time
-    df = pl.DataFrame({
-        "time": list(range(len(bin_centers))),
-        "count": counts.astype(float)
-    })
+    df = pl.DataFrame(
+        {"time": list(range(len(bin_centers))), "count": counts.astype(float)}
+    )
 
     chart = wrc.Chart(width=width, height=height, theme=wrc.WayyTheme, title=title)
-    chart.add_histogram(df, time_col="time", value_col="count", color=color or COLORS["secondary"])
+    chart.add_histogram(
+        df, time_col="time", value_col="count", color=color or COLORS["secondary"]
+    )
 
     # Add vertical lines as horizontal lines (since x-axis is bin index)
     # We need to convert the value to bin index
@@ -253,7 +267,9 @@ def histogram(
         for val, col, label in v_lines:
             # Find closest bin index
             bin_idx = np.argmin(np.abs(bin_centers - val))
-            chart.add_horizontal_line(counts.max() * 0.9, color=col, line_style=2, label=label)
+            chart.add_horizontal_line(
+                counts.max() * 0.9, color=col, line_style=2, label=label
+            )
 
     return chart
 
@@ -261,6 +277,7 @@ def histogram(
 # =============================================================================
 # Bar Charts
 # =============================================================================
+
 
 def bar_chart(
     categories: List[str],
@@ -295,11 +312,9 @@ def bar_chart(
     # Create colors based on value sign
     colors = [pos_color if v >= 0 else neg_color for v in values_arr]
 
-    df = pl.DataFrame({
-        "time": list(range(len(categories))),
-        "value": values_arr,
-        "color": colors
-    })
+    df = pl.DataFrame(
+        {"time": list(range(len(categories))), "value": values_arr, "color": colors}
+    )
 
     chart = wrc.Chart(width=width, height=height, theme=wrc.WayyTheme, title=title)
     chart.add_histogram(df, time_col="time", value_col="value", color_col="color")
@@ -311,6 +326,7 @@ def bar_chart(
 # =============================================================================
 # Backtest Charts
 # =============================================================================
+
 
 class BacktestChart:
     """
@@ -325,11 +341,7 @@ class BacktestChart:
     """
 
     def __init__(
-        self,
-        returns,
-        timestamps=None,
-        benchmark_returns=None,
-        name: str = "Strategy"
+        self, returns, timestamps=None, benchmark_returns=None, name: str = "Strategy"
     ):
         """
         Initialize backtest chart.
@@ -345,7 +357,11 @@ class BacktestChart:
         self.name = name
 
         # Timestamps
-        self.timestamps = _to_timestamps(timestamps) if timestamps is not None else list(range(self.n))
+        self.timestamps = (
+            _to_timestamps(timestamps)
+            if timestamps is not None
+            else list(range(self.n))
+        )
 
         # Benchmark
         self._benchmark_returns = None
@@ -394,20 +410,34 @@ class BacktestChart:
 
         # Extend timestamps to match equity length (prepend t0)
         if len(self.timestamps) > 0:
-            t0 = self.timestamps[0] - 1 if isinstance(self.timestamps[0], (int, float)) else 0
+            t0 = (
+                self.timestamps[0] - 1
+                if isinstance(self.timestamps[0], (int, float))
+                else 0
+            )
             equity_timestamps = [t0] + list(self.timestamps)
         else:
             equity_timestamps = list(range(len(self._equity)))
 
         df = pl.DataFrame({"time": equity_timestamps, "equity": self._equity})
 
-        chart = wrc.Chart(width=width, height=height, theme=wrc.WayyTheme, title=title, value_format="percent")
+        chart = wrc.Chart(
+            width=width,
+            height=height,
+            theme=wrc.WayyTheme,
+            title=title,
+            value_format="percent",
+        )
         chart.add_line(df, time_col="time", value_col="equity", color=COLORS["equity"])
 
         # Benchmark (uses same extended timestamps)
         if self._benchmark_returns is not None:
-            df_b = pl.DataFrame({"time": equity_timestamps, "benchmark": self._benchmark_equity})
-            chart.add_line(df_b, time_col="time", value_col="benchmark", color=COLORS["secondary"])
+            df_b = pl.DataFrame(
+                {"time": equity_timestamps, "benchmark": self._benchmark_equity}
+            )
+            chart.add_line(
+                df_b, time_col="time", value_col="benchmark", color=COLORS["secondary"]
+            )
 
         chart.add_horizontal_line(0, color=COLORS["grid"], line_style=0)
 
@@ -427,24 +457,43 @@ class BacktestChart:
 
         # Extend timestamps to match drawdown length (prepend t0)
         if len(self.timestamps) > 0:
-            t0 = self.timestamps[0] - 1 if isinstance(self.timestamps[0], (int, float)) else 0
+            t0 = (
+                self.timestamps[0] - 1
+                if isinstance(self.timestamps[0], (int, float))
+                else 0
+            )
             dd_timestamps = [t0] + list(self.timestamps)
         else:
             dd_timestamps = list(range(len(self._drawdown)))
 
         df = pl.DataFrame({"time": dd_timestamps, "dd": self._drawdown})
 
-        chart = wrc.Chart(width=width, height=height, theme=wrc.WayyTheme, title=title, value_format="percent")
-        chart.add_area(df, time_col="time", value_col="dd",
-                       line_color=COLORS["accent"],
-                       top_color="rgba(229,57,53,0.1)",
-                       bottom_color="rgba(229,57,53,0.4)")
+        chart = wrc.Chart(
+            width=width,
+            height=height,
+            theme=wrc.WayyTheme,
+            title=title,
+            value_format="percent",
+        )
+        chart.add_area(
+            df,
+            time_col="time",
+            value_col="dd",
+            line_color=COLORS["accent"],
+            top_color="rgba(229,57,53,0.1)",
+            bottom_color="rgba(229,57,53,0.4)",
+        )
         chart.add_horizontal_line(0, color=COLORS["grid"], line_style=0)
 
         return chart
 
-    def sharpe(self, window: int = 252 * 24, title: str = None,
-               width: int = 900, height: int = 300):
+    def sharpe(
+        self,
+        window: int = 252 * 24,
+        title: str = None,
+        width: int = 900,
+        height: int = 300,
+    ):
         """
         Rolling Sharpe ratio chart.
 
@@ -462,7 +511,7 @@ class BacktestChart:
 
         rolling = np.full(self.n, np.nan)
         for i in range(actual_window, self.n):
-            w = self.returns[i - actual_window:i]
+            w = self.returns[i - actual_window : i]
             m = np.mean(w) * ann
             s = np.std(w) * np.sqrt(ann)
             if s > 0:
@@ -500,6 +549,7 @@ class BacktestChart:
 # =============================================================================
 # Indicator Panel (Multi-series)
 # =============================================================================
+
 
 def indicator_panel(
     timestamps,
@@ -550,11 +600,13 @@ def indicator_panel(
     default_colors = [COLORS["primary"], COLORS["accent"], COLORS["secondary"]]
 
     for panel in panels:
-        title = panel.get('title', '')
-        series = panel.get('series', {})
-        h_lines = panel.get('h_lines', [])
+        title = panel.get("title", "")
+        series = panel.get("series", {})
+        h_lines = panel.get("h_lines", [])
 
-        chart = wrc.Chart(width=width, height=panel_height, theme=wrc.WayyTheme, title=title)
+        chart = wrc.Chart(
+            width=width, height=panel_height, theme=wrc.WayyTheme, title=title
+        )
 
         for i, (name, config) in enumerate(series.items()):
             values, color, series_type = config
@@ -562,14 +614,18 @@ def indicator_panel(
             values_arr = _to_numpy(values)
             df = pl.DataFrame({"time": ts, name: values_arr})
 
-            if series_type == 'line':
+            if series_type == "line":
                 chart.add_line(df, time_col="time", value_col=name, color=color)
-            elif series_type == 'area':
-                chart.add_area(df, time_col="time", value_col=name,
-                              line_color=color,
-                              top_color=f"{color}11",
-                              bottom_color=f"{color}44")
-            elif series_type == 'histogram':
+            elif series_type == "area":
+                chart.add_area(
+                    df,
+                    time_col="time",
+                    value_col=name,
+                    line_color=color,
+                    top_color=f"{color}11",
+                    bottom_color=f"{color}44",
+                )
+            elif series_type == "histogram":
                 chart.add_histogram(df, time_col="time", value_col=name, color=color)
 
         for val, col in h_lines:
@@ -584,7 +640,10 @@ def indicator_panel(
 # Convenience exports
 # =============================================================================
 
-def plot_backtest(returns, timestamps=None, benchmark_returns=None, name: str = "Strategy"):
+
+def plot_backtest(
+    returns, timestamps=None, benchmark_returns=None, name: str = "Strategy"
+):
     """Quick backtest visualization."""
     chart = BacktestChart(returns, timestamps, benchmark_returns, name)
     chart.dashboard()
